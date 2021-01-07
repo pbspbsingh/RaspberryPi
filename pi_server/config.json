@@ -1,0 +1,4 @@
+{
+  "port": 53,
+  "log_config": "log4rs.yml"
+}
