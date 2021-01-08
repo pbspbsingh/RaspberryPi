@@ -728,9 +728,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.81"
+version = "0.2.82"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1482821306169ec4d07f6aca392a4681f66c75c9918aa49641a2595db64053cb"
+checksum = "89203f3fba0a3795506acaad8ebce3c80c0af93f994d5a1d7a0b1eeb23271929"
 
 [[package]]
 name = "libsqlite3-sys"
@@ -760,11 +760,11 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.11"
+version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fabed175da42fed1fa0746b0ea71f412aa9d35e76e95e59b192c64b9dc2bf8b"
+checksum = "7e3aeeb5dad71cdfb031ff8899db3e3e2bdcbc5abe7ad48e58857e42488dc4aa"
 dependencies = [
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "serde",
 ]
 
@@ -1717,9 +1717,9 @@ dependencies = [
 
 [[package]]
 name = "thread_local"
-version = "1.0.1"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d40c6d1b69745a6ec6fb1ca717914848da4b44ae29d9b3080cbee91d72a69b14"
+checksum = "bb9bc092d0d51e76b2b19d9d85534ffc9ec2db959a2523cdae0697e2972cd447"
 dependencies = [
  "lazy_static",
 ]
@@ -1893,6 +1893,7 @@ dependencies = [
  "lazy_static",
  "log",
  "rand 0.8.1",
+ "serde",
  "smallvec",
  "thiserror",
  "tokio 1.0.1",
@@ -1913,6 +1914,7 @@ dependencies = [
  "lru-cache",
  "parking_lot",
  "resolv-conf",
+ "serde",
  "smallvec",
  "thiserror",
  "tokio 1.0.1",
@@ -1942,6 +1944,7 @@ dependencies = [
  "toml",
  "trust-dns-client",
  "trust-dns-proto",
+ "trust-dns-resolver",
 ]
 
 [[package]]

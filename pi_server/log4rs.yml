@@ -30,3 +30,9 @@ loggers:
     level: debug
 
   # Add other crates log config below
+  trust_dns_proto:
+    level: debug
+  trust_dns_server:
+    level: debug
+  trust_dns_resolver:
+    level: debug
