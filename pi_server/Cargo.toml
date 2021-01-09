@@ -19,12 +19,12 @@ futures-util = "0.3"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "fs"] }
 
 trust-dns-proto = "0"
-trust-dns-server = { version = "0", features = ["trust-dns-resolver"] }
-trust-dns-resolver = { version = "0", features = ["dns-over-native-tls"] }
+trust-dns-client = "0"
+trust-dns-server = "0"
 
-sqlx = { version = "0.4", features = ["sqlite", "runtime-tokio-native-tls"] }
+# sqlx = { version = "0", features = ["sqlite", "runtime-tokio"] }
 
-[target.'cfg(not(target_env = "msvc"))'.dependencies]
+[target.'cfg(not(target_os = "windows"))'.dependencies]
 jemallocator = "0"
 
 
