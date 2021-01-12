@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use tokio::fs;
 
+pub mod blocker;
 pub mod dns;
+pub mod http_client;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PiConfig {
@@ -13,6 +15,7 @@ pub struct PiConfig {
     forward_server: String,
     pub forward_port: u64,
     pub log_config: String,
+    pub block_list: String,
 }
 
 impl PiConfig {
@@ -22,6 +25,7 @@ impl PiConfig {
             forward_server: "127.0.0.1".into(),
             forward_port: 5053,
             log_config: "log4rs.yml".into(),
+            block_list: "block_list.txt".into(),
         }
     }
 

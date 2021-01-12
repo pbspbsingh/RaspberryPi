@@ -1,6 +1,7 @@
 #[cfg(not(target_os = "windows"))]
 use jemallocator::Jemalloc;
 
+use pi_server::blocker::refresh_block_list;
 use pi_server::dns::start_dns_server;
 use pi_server::PiConfig;
 
@@ -16,7 +17,10 @@ async fn main() -> anyhow::Result<()> {
     init_logger(&config.log_config).await?;
     log::info!("Hello World!");
 
-    let run = tokio::try_join!(start_dns_server(&config));
+    let run = tokio::try_join!(
+        refresh_block_list(&config.block_list),
+        start_dns_server(&config),
+    );
     run.map(|_| ())
 }
 

@@ -2,16 +2,16 @@ use futures_util::StreamExt;
 use tokio::net::{TcpListener, UdpSocket};
 use tokio::time::{Duration, Instant};
 use trust_dns_client::client::AsyncClient;
+use trust_dns_proto::iocompat::AsyncIoTokioAsStd;
 use trust_dns_proto::op::Message;
+use trust_dns_proto::tcp::TcpStream;
 use trust_dns_proto::udp::{UdpClientStream, UdpStream};
 use trust_dns_proto::xfer::dns_handle::DnsHandle;
 use trust_dns_proto::xfer::{DnsRequest, SerialMessage};
 use trust_dns_proto::BufStreamHandle;
+use trust_dns_server::server::TimeoutStream;
 
 use crate::PiConfig;
-use trust_dns_proto::iocompat::AsyncIoTokioAsStd;
-use trust_dns_proto::tcp::TcpStream;
-use trust_dns_server::server::TimeoutStream;
 
 pub async fn start_dns_server(config: &PiConfig) -> anyhow::Result<()> {
     let forward_add = format!("{}:{}", config.forward_server, config.forward_port);
