@@ -1,60 +1,30 @@
 use std::path::Path;
-use std::str::FromStr;
 use std::time::Instant;
 
-use once_cell::sync::OnceCell;
 use reqwest::Client;
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
-use tokio::sync::RwLock;
 use tokio::time::{self, Duration};
-use trust_dns_proto::rr::Name;
 
-use crate::blocker::trie::Trie;
+use crate::dns::domain::Domain;
 use crate::http_client;
 
-pub mod trie;
-
-static BLOCK_TRIE: OnceCell<RwLock<Trie>> = OnceCell::new();
-
+const DAY: Duration = Duration::from_secs(24 * 60 * 60);
 const FIREBOG_URL: &str = "https://v.firebog.net/hosts/csv.txt";
 
 pub async fn refresh_block_list(block_file: impl AsRef<Path>) -> anyhow::Result<()> {
-    BLOCK_TRIE
-        .set(RwLock::new(Trie::new()))
-        .map_err(|_| anyhow::anyhow!("Failed to create BLOCK_TRIE"))?;
-
     let block_file = block_file.as_ref();
-    update_trie(block_file).await?;
-
     loop {
         if let Err(e) = fetch_block_list(block_file).await {
             log::error!("Error while refreshing block list: {}", e);
         }
-        time::sleep(Duration::from_secs(60 * 60)).await;
+        time::sleep(Duration::from_secs(30 * 60)).await;
     }
 }
 
-pub async fn is_blocked(name: &Name) -> bool {
-    if let Some(lock) = BLOCK_TRIE.get() {
-        let lock = lock.read().await;
-        lock.contains(name)
-    } else {
-        false
-    }
-}
-
-async fn update_trie(block_file: &Path) -> anyhow::Result<()> {
-    if !block_file.exists() {
-        return Ok(());
-    }
-
+pub async fn load_block_list(block_file: &str) -> anyhow::Result<Vec<Domain>> {
     let start = Instant::now();
-
-    #[cfg(debug_assertions)]
-    let mut count = 0;
-
-    let mut trie = Trie::new();
+    let mut list = Vec::new();
     let mut buff = String::with_capacity(100);
     let mut reader = BufReader::new(File::open(block_file).await?);
     loop {
@@ -68,47 +38,47 @@ async fn update_trie(block_file: &Path) -> anyhow::Result<()> {
             continue;
         }
         if let Some(idx) = line.find("#") {
-            line = &line[..idx];
-        }
-        line = line.trim();
-        if line.is_empty() {
-            continue;
+            line = line[..idx].trim();
+            if line.is_empty() {
+                continue;
+            }
         }
         line.split_ascii_whitespace()
             .map(str::trim)
             .filter(|&token| "localhost" != token)
-            .filter(|&token| is_valid_domain(token))
-            .filter_map(|token| Name::from_str(token).ok())
-            .for_each(|name| trie.push(&name));
+            .filter_map(Domain::parse)
+            .for_each(|name| {
+                list.push(name);
+            });
         #[cfg(debug_assertions)]
-        {
-            count += 1;
-            if count >= 50_000 {
-                break;
-            }
+        if list.len() >= 50_000 {
+            break;
         }
     }
-    trie.shrink();
     log::info!(
-        "Domains to be blocked: {}, loaded in {}s",
-        trie.len(),
+        "Loaded {} blocked domains in {}s",
+        list.len(),
         start.elapsed().as_secs()
     );
-
-    let lock = BLOCK_TRIE
-        .get()
-        .ok_or_else(|| anyhow::anyhow!("BLOCK_TRIE is empty"))?;
-    let mut lock = lock.write().await;
-    let _ = std::mem::replace(&mut *lock, trie);
-    Ok(())
+    Ok(list)
 }
 
 async fn fetch_block_list(block_file: &Path) -> anyhow::Result<()> {
-    if block_file.exists()
-        && block_file.metadata()?.modified()?.elapsed()? < Duration::from_secs(24 * 60 * 60)
-    {
-        log::debug!("Block list already exists and seems to be up to date!");
-        return Ok(());
+    if block_file.exists() {
+        log::debug!("Block list file exists.");
+        let mod_elapsed = block_file.metadata()?.modified()?.elapsed()?;
+        if mod_elapsed < DAY {
+            let wait_time = (DAY - mod_elapsed).as_secs();
+            let hours = wait_time / (60 * 60);
+            let mins = wait_time / 60 - hours * 60;
+            log::info!(
+                "Block list will be updated after {} hours {} mins",
+                hours,
+                mins
+            );
+            return Ok(());
+        }
+        log::info!("Block list was last updated more than a day ago, updating now...");
     }
 
     let start = Instant::now();
@@ -170,7 +140,7 @@ async fn fetch_block_list(block_file: &Path) -> anyhow::Result<()> {
         total,
         start.elapsed().as_secs()
     );
-    update_trie(block_file).await
+    Ok(())
 }
 
 fn find_targets(content: &str) -> Vec<&str> {
@@ -206,11 +176,4 @@ async fn fetch_target(client: &Client, target: &str) -> anyhow::Result<Vec<Strin
         .filter(|d| !(d.is_empty() || d.starts_with("#")))
         .map(String::from)
         .collect())
-}
-
-pub(in crate::blocker) fn is_valid_domain(domain: &str) -> bool {
-    domain
-        .split(".")
-        .map(|part| part.parse::<u32>())
-        .all(|res| res.is_err())
 }

@@ -1,9 +1,12 @@
 use futures_util::StreamExt;
+use once_cell::sync::OnceCell;
 use tokio::net::{TcpListener, UdpSocket};
+use tokio::sync::RwLock;
 use tokio::time::{Duration, Instant};
 use trust_dns_client::client::AsyncClient;
 use trust_dns_proto::iocompat::AsyncIoTokioAsStd;
 use trust_dns_proto::op::Message;
+use trust_dns_proto::rr::{RData, RecordType};
 use trust_dns_proto::tcp::TcpStream;
 use trust_dns_proto::udp::{UdpClientStream, UdpStream};
 use trust_dns_proto::xfer::dns_handle::DnsHandle;
@@ -11,12 +14,20 @@ use trust_dns_proto::xfer::{DnsRequest, SerialMessage};
 use trust_dns_proto::BufStreamHandle;
 use trust_dns_server::server::TimeoutStream;
 
+use crate::db::save_dns_request;
+pub use crate::dns::filter::update_filters;
+use crate::dns::filter::Filters;
 use crate::PiConfig;
 
+pub mod domain;
+pub mod filter;
+
+static ALLOW: OnceCell<RwLock<Filters>> = OnceCell::new();
+static BLOCK: OnceCell<RwLock<Filters>> = OnceCell::new();
+
 pub async fn start_dns_server(config: &PiConfig) -> anyhow::Result<()> {
-    let forward_add = format!("{}:{}", config.forward_server, config.forward_port);
-    log::info!("Forwarding dns requests to {}", forward_add);
-    let connection = UdpClientStream::<UdpSocket>::new(forward_add.parse()?);
+    log::info!("Forwarding dns requests to {}", config.forward_server);
+    let connection = UdpClientStream::<UdpSocket>::new(config.forward_server.parse()?);
     let (client, req_sender) = AsyncClient::connect(connection).await?;
     let _ = tokio::spawn(req_sender);
 
@@ -91,9 +102,96 @@ struct MessageProcessor {
 
 impl MessageProcessor {
     async fn process(mut self) -> Option<()> {
+        let start = Instant::now();
         let request = self.parse_message()?;
-        let response = self.forward_request(request).await?;
-        Some(self.respond_back(response)?)
+        if let Some(mut response) = self.forward_request(request.clone()).await {
+            let mut filtered = None;
+            let mut cause = None;
+            if let Some((reason, allowed)) = self.filter(&request).await {
+                if !allowed {
+                    MessageProcessor::update_response(&mut response)
+                }
+                filtered = Some(allowed);
+                cause = Some(reason);
+            }
+            self.respond_back(&response, &start)?;
+            save_dns_request(&response, filtered, cause, true)
+                .await
+                .ok()?;
+        } else {
+            save_dns_request(&request, None, None, false).await.ok()?;
+        }
+        Some(())
+    }
+
+    fn parse_message(&self) -> Option<Message> {
+        match Message::from_vec(self.message.bytes()) {
+            Err(e) => {
+                log::warn!("Failed to parse the message: {}", e);
+                None
+            }
+            Ok(msg) => {
+                log::debug!(
+                    "[{}] Parsed message: {} edns: {}",
+                    msg.id(),
+                    msg.queries()
+                        .first()
+                        .map(|q| format!(
+                            "{} {} {}",
+                            q.name().to_string(),
+                            q.query_type(),
+                            q.query_class()
+                        ))
+                        .unwrap_or_else(|| Default::default()),
+                    msg.edns().is_some()
+                );
+                Some(msg)
+            }
+        }
+    }
+
+    async fn filter(&self, request: &Message) -> Option<(String, bool)> {
+        let mut block_reason = None;
+        for query in request.queries() {
+            let name = query.name();
+            if let Some(allow) = ALLOW.get() {
+                if let Some(allow_name) = { allow.read().await.check(name) } {
+                    log::info!("{} is allowed by {}", name.to_string(), allow_name);
+                    return Some((allow_name.to_string(), true));
+                }
+            } else {
+                log::warn!("ALLOW is not initialized yet!!");
+            }
+
+            if let Some(block) = BLOCK.get() {
+                if let Some(block_name) = { block.read().await.check(name) } {
+                    log::warn!("{} is blocked by {}", name.to_string(), block_name);
+                    block_reason = Some(block_name.to_string());
+                }
+            } else {
+                log::warn!("BLOCK is not initialized yet!!");
+            }
+        }
+        block_reason.map(|r| (r, false))
+    }
+
+    fn update_response(response: &mut Message) {
+        for ans in response.answers_mut() {
+            match ans.record_type() {
+                RecordType::A => {
+                    ans.set_rdata(RData::A("0.0.0.0".parse().unwrap()));
+                }
+                RecordType::AAAA => {
+                    ans.set_rdata(RData::AAAA("::/0".parse().unwrap()));
+                }
+                _ => {
+                    log::warn!(
+                        "Unexpected record type in blocked response: {}",
+                        ans.record_type()
+                    );
+                }
+            }
+        }
     }
 
     async fn forward_request(&mut self, message: Message) -> Option<Message> {
@@ -134,8 +232,7 @@ impl MessageProcessor {
         }
     }
 
-    fn respond_back(&mut self, response: Message) -> Option<()> {
-        let start = Instant::now();
+    fn respond_back(&mut self, response: &Message, start: &Instant) -> Option<()> {
         let id = response.id();
         let response = SerialMessage::new(response.to_vec().ok()?, self.message.addr());
         match self.sender.send(response) {
@@ -149,31 +246,5 @@ impl MessageProcessor {
             }
         }
         Some(())
-    }
-
-    fn parse_message(&self) -> Option<Message> {
-        match Message::from_vec(self.message.bytes()) {
-            Err(e) => {
-                log::warn!("Failed to parse the message: {}", e);
-                None
-            }
-            Ok(msg) => {
-                log::debug!(
-                    "[{}] Parsed message: {} edns: {}",
-                    msg.id(),
-                    msg.queries()
-                        .first()
-                        .map(|q| format!(
-                            "{} {} {}",
-                            q.name().to_string(),
-                            q.query_type(),
-                            q.query_class()
-                        ))
-                        .unwrap_or_else(|| Default::default()),
-                    msg.edns().is_some()
-                );
-                Some(msg)
-            }
-        }
     }
 }

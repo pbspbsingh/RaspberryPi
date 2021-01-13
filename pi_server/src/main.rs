@@ -2,7 +2,8 @@
 use jemallocator::Jemalloc;
 
 use pi_server::blocker::refresh_block_list;
-use pi_server::dns::start_dns_server;
+use pi_server::db::init_db;
+use pi_server::dns::{start_dns_server, update_filters};
 use pi_server::PiConfig;
 
 #[cfg(not(target_os = "windows"))]
@@ -15,11 +16,13 @@ async fn main() -> anyhow::Result<()> {
     println!("Starting with {:#?}", config);
 
     init_logger(&config.log_config).await?;
-    log::info!("Hello World!");
+
+    init_db(&config.db_path).await?;
 
     let run = tokio::try_join!(
-        refresh_block_list(&config.block_list),
+        update_filters(&config.block_list),
         start_dns_server(&config),
+        refresh_block_list(&config.block_list),
     );
     run.map(|_| ())
 }
