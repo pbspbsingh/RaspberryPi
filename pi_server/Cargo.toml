@@ -24,11 +24,13 @@ trust-dns-proto = "0"
 trust-dns-client = "0"
 trust-dns-server = "0"
 
-regex = "1"
 
-sqlx = { git = "https://github.com/ant32/sqlx.git", branch = "tokio-1.0", features = ["chrono", "runtime-tokio-native-tls", "sqlite"] }
+sqlx = { git = "https://github.com/ant32/sqlx.git", branch = "tokio-1.0", features = ["runtime-tokio-native-tls", "sqlite", "chrono", "all-types"] }
 # sqlx = { version = "0", features = ["sqlite", "runtime-tokio-native-tls"] }
-# warp = "0"
+warp = { git = "https://github.com/seanmonstar/warp" }
+
+regex = "1"
+systemstat = { git = "https://github.com/myfreeweb/systemstat" }
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 jemallocator = "0"

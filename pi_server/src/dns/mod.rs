@@ -14,7 +14,9 @@ use trust_dns_proto::xfer::{DnsRequest, SerialMessage};
 use trust_dns_proto::BufStreamHandle;
 use trust_dns_server::server::TimeoutStream;
 
-use crate::db::save_dns_request;
+use dns_requests::save;
+
+use crate::db::dns_requests;
 pub use crate::dns::filter::update_filters;
 use crate::dns::filter::Filters;
 use crate::PiConfig;
@@ -32,8 +34,8 @@ pub async fn start_dns_server(config: &PiConfig) -> anyhow::Result<()> {
     let _ = tokio::spawn(req_sender);
 
     tokio::try_join!(
-        register_udp(client.clone(), config.port),
-        register_tcp(client, config.port)
+        register_udp(client.clone(), config.dns_port),
+        register_tcp(client, config.dns_port)
     )?;
     Ok(())
 }
@@ -115,11 +117,11 @@ impl MessageProcessor {
                 cause = Some(reason);
             }
             self.respond_back(&response, &start)?;
-            save_dns_request(&response, filtered, cause, true)
-                .await
-                .ok()?;
+            let resp_ms = start.elapsed().as_millis() as i64;
+            save(&response, filtered, cause, true, resp_ms).await.ok()?;
         } else {
-            save_dns_request(&request, None, None, false).await.ok()?;
+            let resp_ms = start.elapsed().as_millis() as i64;
+            save(&request, None, None, false, resp_ms).await.ok()?;
         }
         Some(())
     }

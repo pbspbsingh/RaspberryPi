@@ -106,10 +106,6 @@ async fn fetch_block_list(block_file: &Path) -> anyhow::Result<()> {
     let mut total = 0;
     let mut writer = BufWriter::new(File::create(block_file).await?);
     for (i, target) in targets.into_iter().enumerate() {
-        if target.contains("facebook") {
-            continue;
-        }
-
         let target_content = match fetch_target(&client, &target).await {
             Err(e) => {
                 log::warn!("{}: {}", target, e);

@@ -9,11 +9,14 @@ pub mod blocker;
 pub mod db;
 pub mod dns;
 pub mod http_client;
+pub mod sysinfo;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PiConfig {
     pub db_path: String,
-    pub port: u64,
+    pub db_opt: String,
+    pub db_pool: u32,
+    pub dns_port: u64,
     pub forward_server: String,
     pub log_config: String,
     pub block_list: String,
@@ -23,7 +26,9 @@ impl PiConfig {
     fn default() -> Self {
         PiConfig {
             db_path: "server.db".into(),
-            port: 53,
+            db_opt: "PRAGMA synchronous=OFF;".into(),
+            db_pool: 1,
+            dns_port: 53,
             forward_server: "127.0.0.1:5053".into(),
             log_config: "log4rs.yml".into(),
             block_list: "block_list.txt".into(),

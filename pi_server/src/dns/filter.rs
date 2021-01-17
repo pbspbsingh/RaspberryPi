@@ -8,7 +8,7 @@ use tokio::time::Duration;
 use trust_dns_proto::rr::Name;
 
 use crate::blocker::load_block_list;
-use crate::db::{fetch_filters, DbFilter};
+use crate::db::filters::{fetch_filters, DbFilter};
 use crate::dns::domain::{sort_domains, Domain};
 use crate::dns::{ALLOW, BLOCK};
 
@@ -111,13 +111,13 @@ async fn load_db_filters(db_filters: Vec<DbFilter>) -> anyhow::Result<Filters> {
     let regex_set = RegexSet::new(
         regex
             .into_iter()
-            .map(|f| f.domain)
+            .map(|f| f.expr)
             .filter(|s| Regex::new(s).is_ok()),
     )?;
     let domains = sort_domains(
         domain
             .into_iter()
-            .filter_map(|f| Domain::parse(f.domain))
+            .filter_map(|f| Domain::parse(f.expr))
             .collect(),
     );
     Ok(Filters {
