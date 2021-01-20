@@ -86,6 +86,13 @@ pub async fn update_filters(block_file: &str) -> anyhow::Result<()> {
     }
 }
 
+async fn load_allow() -> anyhow::Result<()> {
+    let filters = load_db_filters(fetch_filters(true).await?).await?;
+    let mut lock = ALLOW.get().unwrap().write().await;
+    let _ = std::mem::replace(&mut *lock, filters);
+    Ok(())
+}
+
 async fn load_block(block_file: &str) -> anyhow::Result<()> {
     let mut filters = load_db_filters(fetch_filters(false).await?).await?;
     let domains = load_block_list(block_file).await?;
@@ -95,13 +102,6 @@ async fn load_block(block_file: &str) -> anyhow::Result<()> {
         Filter::DomainMatch(domains),
     ));
     let mut lock = BLOCK.get().unwrap().write().await;
-    let _ = std::mem::replace(&mut *lock, filters);
-    Ok(())
-}
-
-async fn load_allow() -> anyhow::Result<()> {
-    let filters = load_db_filters(fetch_filters(true).await?).await?;
-    let mut lock = ALLOW.get().unwrap().write().await;
     let _ = std::mem::replace(&mut *lock, filters);
     Ok(())
 }

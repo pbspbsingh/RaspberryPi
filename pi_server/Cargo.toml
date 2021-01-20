@@ -26,7 +26,7 @@ trust-dns-server = "0"
 
 
 sqlx = { git = "https://github.com/ant32/sqlx.git", branch = "tokio-1.0", features = ["runtime-tokio-native-tls", "sqlite", "chrono", "all-types"] }
-# sqlx = { version = "0", features = ["sqlite", "runtime-tokio-native-tls"] }
+# sqlx = { git = "https://github.com/launchbadge/sqlx", features = ["runtime-tokio-native-tls", "sqlite", "chrono", "all-types"] }
 warp = { git = "https://github.com/seanmonstar/warp" }
 
 regex = "1"

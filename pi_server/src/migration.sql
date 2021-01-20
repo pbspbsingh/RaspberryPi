@@ -8,6 +8,7 @@ create table if not exists filters (
 );
 insert into filters(expr, is_regex, enabled, is_allow) values('facebook.com', false, true, true);
 insert into filters(expr, is_regex, enabled, is_allow) values('instagram.com', false, true, true);
+insert into filters(expr, is_regex, enabled, is_allow) values('workplace.com', false, true, true);
 insert into filters(expr, is_regex, enabled, is_allow) values('hn.algolia.com', false, true, true);
 
 create table if not exists dns_requests (
