@@ -40,7 +40,7 @@ pub async fn start_dns_server(config: &PiConfig) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn register_udp(client: AsyncClient, port: u64) -> anyhow::Result<()> {
+async fn register_udp(client: AsyncClient, port: u32) -> anyhow::Result<()> {
     log::debug!("Listening for UDP requests at port {}", port);
     let socket = UdpSocket::bind(format!("0.0.0.0:{}", port)).await?;
     let (mut receiver, sender) = UdpStream::with_bound(socket);
@@ -61,7 +61,7 @@ async fn register_udp(client: AsyncClient, port: u64) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn register_tcp(client: AsyncClient, port: u64) -> anyhow::Result<()> {
+async fn register_tcp(client: AsyncClient, port: u32) -> anyhow::Result<()> {
     log::debug!("Listening for TCP requests at port {}", port);
     let tcp = TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
     loop {

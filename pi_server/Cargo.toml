@@ -18,22 +18,29 @@ serde_yaml = "0"
 futures-util = "0.3"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "fs"] }
 
-reqwest = { version = "0", features = ["cookies"] }
+reqwest = { version = "0", features = ["cookies", "rustls"] }
 
 trust-dns-proto = "0"
 trust-dns-client = "0"
 trust-dns-server = "0"
 
-
-sqlx = { git = "https://github.com/ant32/sqlx.git", branch = "tokio-1.0", features = ["runtime-tokio-native-tls", "sqlite", "chrono", "all-types"] }
-# sqlx = { git = "https://github.com/launchbadge/sqlx", features = ["runtime-tokio-native-tls", "sqlite", "chrono", "all-types"] }
-warp = { git = "https://github.com/seanmonstar/warp" }
+chrono = "0"
+sqlx = { git = "https://github.com/ant32/sqlx.git", branch = "tokio-1.0", features = ["runtime-tokio-rustls", "sqlite", "chrono", "all-types"] }
+#sqlx = { git = "https://github.com/launchbadge/sqlx", features = ["runtime-tokio-rustls", "sqlite", "chrono", "all-types"] }
+warp = { git = "https://github.com/seanmonstar/warp", features = ["websocket"] }
+http = "0"
+mime_guess = "2"
 
 regex = "1"
 systemstat = { git = "https://github.com/myfreeweb/systemstat" }
+zip = "0"
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 jemallocator = "0"
+
+[build-dependencies]
+anyhow = "1"
+zip = "0"
 
 
 [profile.release]

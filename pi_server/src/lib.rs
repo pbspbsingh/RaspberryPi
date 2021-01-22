@@ -10,13 +10,15 @@ pub mod db;
 pub mod dns;
 pub mod http_client;
 pub mod sysinfo;
+pub mod web;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PiConfig {
     pub db_path: String,
     pub db_opt: String,
     pub db_pool: u32,
-    pub dns_port: u64,
+    pub dns_port: u32,
+    pub web_port: u32,
     pub forward_server: String,
     pub log_config: String,
     pub block_list: String,
@@ -29,6 +31,7 @@ impl PiConfig {
             db_opt: "PRAGMA synchronous=OFF;".into(),
             db_pool: 1,
             dns_port: 53,
+            web_port: 8080,
             forward_server: "127.0.0.1:5053".into(),
             log_config: "log4rs.yml".into(),
             block_list: "block_list.txt".into(),

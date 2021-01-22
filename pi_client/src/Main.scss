@@ -1,0 +1,129 @@
+@font-face {
+    font-family: 'Nunito';
+    src: url(fonts/Nunito-Regular.ttf);
+}
+@font-face {
+    font-family: 'NunitoL';
+    src: url(fonts/Nunito-Light.ttf);
+}
+
+$body-color: #3a3a3a;
+$secondary: #8f8f8f;
+$font-size-root: 16px;
+$font-family-sans-serif: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";
+$font-family-monospace: SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+
+@import "~bootstrap/scss/bootstrap";
+
+body {
+    background: #f8f8f8;
+    
+    h1, h2, h3, h4, h5, h5 {
+        font-family: 'Nunito';
+    }
+
+    a, p {
+        font-family: 'NunitoL';
+    }
+
+    a {
+        color: #576a3d;
+        transition: all .3s;
+        text-decoration: none;
+
+        & :hover {
+            color: #576a3d;
+        }
+    }
+
+    .content {
+        min-height: 100vh;
+
+        nav {
+            background: #fff;
+            padding: 10px 0;
+            width: 120px;
+            overflow-x: hidden;
+            overflow-y: auto;
+            border-right: 1px solid #f3f3f3;
+            box-shadow: 0 3px 30px rgba(0,0,0,.1), 0 3px 20px rgba(0,0,0,.1);
+
+            .logo img {
+                height: 80px;
+            }
+
+            .navigation {
+                margin-top: 15px;
+                width: 100%;
+                li {
+                    padding: 25px 0;
+                    border-bottom: 1px solid #f3f3f3;
+
+                    a {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        font-size: .85rem;
+
+                        .bi {
+                            $icon: 50px;
+                            width: $icon;
+                            height: $icon;
+                            margin-bottom: 5px;
+                        }
+
+                        &:hover {
+                            color: $secondary;
+
+                            .bi, .bi > * {
+                                color: $secondary;
+                            }
+                        }
+                    }
+
+                    &.active::before {
+                        content: " ";
+                        background: #576a3d;
+                        border-radius: 10px;
+                        position: absolute;
+                        width: 6px;
+                        height: 73px;
+                    }
+                }
+            }
+        }
+
+        main {
+            flex: 1;
+
+            footer {
+                height: 90px;
+                margin-top: auto;
+                padding: 2.2rem;
+                border-top: 1px solid #d7d7d7;
+                font-size: 0.85rem;
+            }
+
+            .main-content {
+                padding: 40px;
+
+                header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    border-bottom: 1px solid #d7d7d7;
+                }
+
+                .filter-date-range {
+                    margin: 0;
+                    
+                    a.selected {
+                        font-weight: bold;
+                        font-family: 'Nunito';
+
+                    }
+                }
+            }
+        }
+    }
+}

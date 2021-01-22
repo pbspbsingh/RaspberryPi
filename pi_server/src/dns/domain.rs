@@ -2,15 +2,16 @@ use std::cmp::Ordering;
 use std::fmt::Display;
 use std::fmt::Formatter;
 
-use std::collections::HashSet;
+use std::iter::FromIterator;
 use std::time::Instant;
 use trust_dns_proto::rr::Name;
 
-pub fn sort_domains(domains: Vec<Domain>) -> HashSet<Domain> {
+pub fn sort_domains<C: FromIterator<Domain>>(mut domains: Vec<Domain>) -> C {
     let start = Instant::now();
     let old_len = domains.len();
 
     let mut new_domains = Vec::with_capacity(old_len);
+    domains.sort();
     for curr in domains {
         if let Some(prev) = new_domains.last() {
             if !curr.subdomain_of(prev) {
@@ -26,7 +27,7 @@ pub fn sort_domains(domains: Vec<Domain>) -> HashSet<Domain> {
         new_domains.len(),
         start.elapsed().as_millis()
     );
-    new_domains.into_iter().collect()
+    new_domains.into_iter().collect::<C>()
 }
 
 #[derive(Clone, Debug, Hash)]

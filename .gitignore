@@ -1,7 +1,10 @@
 node_modules
+build
 .idea
+.vscode
 *.iml
 block_list.txt
 *.log
-*.db
+*.db*
 .DS_Store
+.eslintcache
