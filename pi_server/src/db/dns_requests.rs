@@ -1,9 +1,12 @@
+use std::collections::HashSet;
+use std::time::Instant;
+
+use sqlx::types::chrono::NaiveDateTime;
 use trust_dns_proto::op::Message;
 
 use crate::db::POOL;
-use sqlx::types::chrono::NaiveDateTime;
-use std::collections::HashSet;
-use std::time::Instant;
+use crate::Timer;
+use chrono::Local;
 
 #[derive(Debug, sqlx::FromRow)]
 pub struct DnsRequest {
@@ -18,10 +21,17 @@ pub struct DnsRequest {
     pub resp_ms: i64,
 }
 
-pub async fn get() -> anyhow::Result<Vec<DnsRequest>> {
-    Ok(sqlx::query_as!(DnsRequest, "select * from dns_requests")
-        .fetch_all(POOL.get().unwrap())
-        .await?)
+pub async fn fetch_dns_reqs(from: NaiveDateTime) -> anyhow::Result<Vec<DnsRequest>> {
+    let start = Instant::now();
+    let res = sqlx::query_as!(
+        DnsRequest,
+        "select * from dns_requests where req_time >= ?",
+        from
+    )
+    .fetch_all(POOL.get().unwrap())
+    .await?;
+    log::debug!("Time taken to fetch dns requests: {}", start.t());
+    Ok(res)
 }
 
 pub async fn save(
@@ -58,10 +68,64 @@ values(?, ?, ?, ?, ?, ?, ?)",
     )
     .execute(POOL.get().unwrap())
     .await?;
-    log::debug!(
-        "[{}] DnsRequest insertion time: {}ms",
-        msg.id(),
-        start.elapsed().as_millis()
-    );
+    log::debug!("[{}] DnsRequest insertion time: {}", msg.id(), start.t());
     Ok(done.last_insert_rowid())
+}
+
+pub async fn agg_by_time(
+    from: NaiveDateTime,
+) -> anyhow::Result<Vec<(NaiveDateTime, i64, f64, Option<bool>)>> {
+    let agg_time = (Local::now().naive_local() - from).num_seconds() / 50;
+    let start = Instant::now();
+    let res = sqlx::query_as(&format!(
+        r"select 
+datetime((strftime('%s', req_time) / {0}) * {0}, 'unixepoch') interval, 
+count(req_id),
+avg(resp_ms), 
+filtered 
+from dns_requests where req_time >= ? and responded = true
+group by interval, filtered order by interval",
+        agg_time
+    ))
+    .bind(from)
+    .fetch_all(POOL.get().unwrap())
+    .await?;
+    log::info!(
+        "Time taken to aggregate dns requests from {}: {}",
+        from,
+        start.t()
+    );
+    Ok(res)
+}
+
+pub async fn agg_by_type(from: NaiveDateTime) -> anyhow::Result<Vec<(String, i64)>> {
+    let start = Instant::now();
+    let res = sqlx::query_as(
+        r"select req_type, count(req_id) 
+from dns_requests where req_time >= ? and responded = true
+group by req_type",
+    )
+    .bind(from)
+    .fetch_all(POOL.get().unwrap())
+    .await?;
+    log::info!("Type aggregation time {}", start.t());
+    Ok(res)
+}
+
+pub async fn agg_by_filtered(
+    from: NaiveDateTime,
+    is_filtered: bool,
+) -> anyhow::Result<Vec<(String, i64)>> {
+    let start = Instant::now();
+    let res = sqlx::query_as(
+        r"select request, count(req_id) cnt 
+from dns_requests where req_time >= ? and filtered = ? and responded = true
+group by request order by cnt desc limit 10",
+    )
+    .bind(from)
+    .bind(is_filtered)
+    .fetch_all(POOL.get().unwrap())
+    .await?;
+    log::info!("Request aggregation time {}", start.t());
+    Ok(res)
 }

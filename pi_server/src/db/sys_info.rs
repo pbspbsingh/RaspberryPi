@@ -1,6 +1,7 @@
-use crate::db::POOL;
 use serde_json::Value;
 use sqlx::types::chrono::NaiveDateTime;
+
+use crate::db::POOL;
 
 #[derive(Debug, sqlx::FromRow)]
 pub struct SysInfo {

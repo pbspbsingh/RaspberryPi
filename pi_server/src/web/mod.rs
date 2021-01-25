@@ -2,21 +2,44 @@ use std::io::{Cursor, Read};
 
 use http::header;
 use http::response::Response;
+use serde::{Deserialize, Serialize};
 use warp::filters::path::FullPath;
 use warp::hyper::StatusCode;
+use warp::reject::Reject;
 use warp::{filters, Filter};
 use zip::ZipArchive;
 
+use crate::web::dashboard::fetch_dashboard;
 use crate::PiConfig;
+use warp::filters::compression;
+
+mod dashboard;
 
 const STATIC_ASSETS: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/static_assets.zip"));
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WebError {
+    pub error: String,
+}
+
+impl Reject for WebError {}
+
+impl WebError {
+    pub fn new(e: anyhow::Error) -> Self {
+        WebError {
+            error: e.to_string(),
+        }
+    }
+}
+
 pub async fn start_web_server(config: &PiConfig) -> anyhow::Result<()> {
-    let filters = warp::get()
+    let dashboard = warp::path!("dashboard" / u32).and_then(fetch_dashboard);
+    let assets = warp::get()
         .and(filters::path::full())
         .map(map_static_assets);
+    let filters = dashboard.or(assets);
     log::info!("Starting web server at port {}", config.web_port);
-    Ok(warp::serve(filters)
+    Ok(warp::serve(filters.with(compression::gzip()))
         .run(([0, 0, 0, 0], config.web_port as u16))
         .await)
 }

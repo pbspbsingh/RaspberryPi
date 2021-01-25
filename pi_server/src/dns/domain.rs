@@ -1,10 +1,12 @@
 use std::cmp::Ordering;
 use std::fmt::Display;
 use std::fmt::Formatter;
-
 use std::iter::FromIterator;
 use std::time::Instant;
+
 use trust_dns_proto::rr::Name;
+
+use crate::Timer;
 
 pub fn sort_domains<C: FromIterator<Domain>>(mut domains: Vec<Domain>) -> C {
     let start = Instant::now();
@@ -22,10 +24,10 @@ pub fn sort_domains<C: FromIterator<Domain>>(mut domains: Vec<Domain>) -> C {
         }
     }
     log::info!(
-        "Domain before sorting {}, after sorting {} in {}ms",
+        "Domain before sorting {}, after sorting {} in {}",
         old_len,
         new_domains.len(),
-        start.elapsed().as_millis()
+        start.t()
     );
     new_domains.into_iter().collect::<C>()
 }
@@ -148,10 +150,12 @@ impl Display for Domain {
 
 #[cfg(test)]
 mod test {
-    use crate::blocker::load_block_list;
-    use crate::dns::domain::Domain;
     use std::path::Path;
     use std::time::Instant;
+
+    use crate::blocker::load_block_list;
+    use crate::dns::domain::Domain;
+    use crate::Timer;
 
     #[test]
     fn test1() {
@@ -207,7 +211,7 @@ mod test {
                 .collect::<Vec<_>>()
                 .join("\n"),
         )?;
-        println!("Dumped set in {}ms", start.elapsed().as_millis());
+        println!("Dumped set in {}", start.t());
         Ok(())
     }
 

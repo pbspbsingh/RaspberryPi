@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::path::Path;
 use std::time::Instant;
 
 use regex::{Regex, RegexSet};
@@ -11,8 +12,12 @@ use crate::blocker::load_block_list;
 use crate::db::filters::{fetch_filters, DbFilter};
 use crate::dns::domain::{sort_domains, Domain};
 use crate::dns::{ALLOW, BLOCK};
+use crate::Timer;
 
-#[derive(Debug)]
+const AN_HOUR: Duration = Duration::from_secs(60 * 60);
+const BL_NAME: &str = "BlockList Match";
+
+#[derive(Debug, Clone)]
 enum Filter {
     Pattern(RegexSet),
     DomainMatch(HashSet<Domain>),
@@ -66,23 +71,22 @@ pub async fn update_filters(block_file: &str) -> anyhow::Result<()> {
 
     loop {
         log::debug!("Updating the filters...");
+
         let start = Instant::now();
-        match load_allow().await {
-            Err(e) => log::warn!("Failed to update allow list: {}", e),
-            Ok(_) => log::info!(
-                "Successfully updated allow list in {}ms",
-                start.elapsed().as_millis()
-            ),
+        if let Err(e) = load_allow().await {
+            log::warn!("Failed to update allow list: {}", e);
+        } else {
+            log::info!("Successfully updated allow list in {}", start.t());
         }
+
         let start = Instant::now();
-        match load_block(block_file).await {
-            Err(e) => log::warn!("Failed to update block list: {}", e),
-            Ok(_) => log::info!(
-                "Successfully updated block list in {}s",
-                start.elapsed().as_secs()
-            ),
+        if let Err(e) = load_block(block_file).await {
+            log::warn!("Failed to update block list: {}", e);
+        } else {
+            log::info!("Successfully updated block list in {}", start.t());
         }
-        time::sleep(Duration::from_secs(60 * 60)).await;
+
+        time::sleep(AN_HOUR).await;
     }
 }
 
@@ -95,12 +99,34 @@ async fn load_allow() -> anyhow::Result<()> {
 
 async fn load_block(block_file: &str) -> anyhow::Result<()> {
     let mut filters = load_db_filters(fetch_filters(false).await?).await?;
-    let domains = load_block_list(block_file).await?;
-    let domains = sort_domains(domains);
-    filters.filters.push((
-        String::from("BlockList Match"),
-        Filter::DomainMatch(domains),
-    ));
+
+    let block_file = Path::new(block_file);
+    let last_updated = if block_file.exists() {
+        block_file.metadata()?.modified()?.elapsed()?
+    } else {
+        Duration::from_millis(0)
+    };
+    log::info!("Block list file was modified {} ago", last_updated.t());
+    let mut bl_filter = None;
+    if last_updated > AN_HOUR {
+        let read_lock = BLOCK.get().unwrap().read().await;
+        if let Some((_, f)) = read_lock.filters.iter().find(|f| f.0 == BL_NAME) {
+            log::info!("Block list hasn't been updated lately, no need to read from disk");
+            bl_filter = Some(f.clone());
+        }
+    }
+    if bl_filter.is_none() {
+        if let Ok(domains) = load_block_list(block_file).await {
+            let domains = sort_domains(domains);
+            bl_filter = Some(Filter::DomainMatch(domains));
+        } else {
+            log::warn!("Failed to read block_list file");
+        }
+    }
+    if let Some(bl_filter) = bl_filter {
+        filters.filters.push((BL_NAME.into(), bl_filter));
+    }
+
     let mut lock = BLOCK.get().unwrap().write().await;
     let _ = std::mem::replace(&mut *lock, filters);
     Ok(())

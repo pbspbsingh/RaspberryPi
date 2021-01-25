@@ -1,10 +1,11 @@
+use std::path::Path;
+
 use once_cell::sync::OnceCell;
 use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::{Executor, SqlitePool};
 use tokio::time::Duration;
 
 use crate::PiConfig;
-use std::path::Path;
 
 pub mod dns_requests;
 pub mod filters;

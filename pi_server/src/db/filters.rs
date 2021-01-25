@@ -15,7 +15,7 @@ pub struct DbFilter {
 pub async fn fetch_filters(is_allow: bool) -> anyhow::Result<Vec<DbFilter>> {
     Ok(sqlx::query_as!(
         DbFilter,
-        "select * from filters where enabled=? and is_allow=?",
+        "select * from filters where enabled=? and is_allow=? order by ct desc",
         true,
         is_allow
     )

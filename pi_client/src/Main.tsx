@@ -10,7 +10,7 @@ import Queries from './pages/Queries';
 export default function Main(): JSX.Element {
     return (
         <main className="d-flex flex-column">
-            <div className="main-content container-fluid">
+            <div className="main-content container-fluid flex-grow-1">
                 <Switch>
                     <Route path="/queries">
                         <Queries />

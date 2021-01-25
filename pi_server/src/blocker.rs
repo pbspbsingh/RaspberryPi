@@ -7,9 +7,9 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
 use tokio::time::{self, Duration};
 
 use crate::dns::domain::Domain;
-use crate::http_client;
+use crate::{http_client, Timer};
 
-const DAY: Duration = Duration::from_secs(24 * 60 * 60);
+const WEEK: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 const FIREBOG_URL: &str = "https://v.firebog.net/hosts/csv.txt";
 
 pub async fn refresh_block_list(block_file: impl AsRef<Path>) -> anyhow::Result<()> {
@@ -22,7 +22,7 @@ pub async fn refresh_block_list(block_file: impl AsRef<Path>) -> anyhow::Result<
     }
 }
 
-pub async fn load_block_list(block_file: &str) -> anyhow::Result<Vec<Domain>> {
+pub async fn load_block_list(block_file: impl AsRef<Path>) -> anyhow::Result<Vec<Domain>> {
     let start = Instant::now();
     let mut list = Vec::new();
     let mut buff = String::with_capacity(100);
@@ -51,15 +51,11 @@ pub async fn load_block_list(block_file: &str) -> anyhow::Result<Vec<Domain>> {
                 list.push(name);
             });
         #[cfg(debug_assertions)]
-        if list.len() >= 50_000 {
+        if list.len() >= 5000 {
             break;
         }
     }
-    log::info!(
-        "Loaded {} blocked domains in {}s",
-        list.len(),
-        start.elapsed().as_secs()
-    );
+    log::info!("Loaded {} blocked domains in {}", list.len(), start.t());
     Ok(list)
 }
 
@@ -67,18 +63,12 @@ async fn fetch_block_list(block_file: &Path) -> anyhow::Result<()> {
     if block_file.exists() {
         log::debug!("Block list file exists.");
         let mod_elapsed = block_file.metadata()?.modified()?.elapsed()?;
-        if mod_elapsed < DAY {
-            let wait_time = (DAY - mod_elapsed).as_secs();
-            let hours = wait_time / (60 * 60);
-            let mins = wait_time / 60 - hours * 60;
-            log::info!(
-                "Block list will be updated after {} hours {} mins",
-                hours,
-                mins
-            );
+        if mod_elapsed < WEEK {
+            let wait_time = WEEK - mod_elapsed;
+            log::info!("Block list will be updated after {}", wait_time.t());
             return Ok(());
         }
-        log::info!("Block list was last updated more than a day ago, updating now...");
+        log::info!("Block list was last updated more than a week ago, updating now...");
     }
 
     let start = Instant::now();
@@ -131,11 +121,7 @@ async fn fetch_block_list(block_file: &Path) -> anyhow::Result<()> {
             writer.write(b"\n\n").await?;
         }
     }
-    log::info!(
-        "Total domains fetched: {} in time: {}s",
-        total,
-        start.elapsed().as_secs()
-    );
+    log::info!("Total domains fetched: {} in time: {}", total, start.t());
     Ok(())
 }
 

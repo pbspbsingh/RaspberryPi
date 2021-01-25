@@ -1,8 +1,9 @@
+use std::time::{Duration, Instant};
+
 use futures_util::StreamExt;
 use once_cell::sync::OnceCell;
 use tokio::net::{TcpListener, UdpSocket};
 use tokio::sync::RwLock;
-use tokio::time::{Duration, Instant};
 use trust_dns_client::client::AsyncClient;
 use trust_dns_proto::iocompat::AsyncIoTokioAsStd;
 use trust_dns_proto::op::Message;
@@ -19,7 +20,7 @@ use dns_requests::save;
 use crate::db::dns_requests;
 pub use crate::dns::filter::update_filters;
 use crate::dns::filter::Filters;
-use crate::PiConfig;
+use crate::{PiConfig, Timer};
 
 pub mod domain;
 pub mod filter;
@@ -203,14 +204,12 @@ impl MessageProcessor {
 
         match self.client.send(request).await {
             Err(e) => {
-                let elapsed = start.elapsed().as_millis();
-                log::error!("[{}] DNS request failed in {} ms: {}", id, elapsed, e);
+                log::error!("[{}] DNS request failed in {}: {}", id, start.t(), e);
                 return None;
             }
             Ok(mut response) => {
                 response.set_id(id); // For some reason response id is different from request Id
-                let elapsed = start.elapsed().as_millis();
-                log::info!("[{}] DNS request succeeded in {} ms", id, elapsed);
+                log::info!("[{}] DNS request succeeded in {}", id, start.t());
                 for answer in response.answers() {
                     log::debug!(
                         "[{}] {} {} {} => {}",
@@ -239,12 +238,10 @@ impl MessageProcessor {
         let response = SerialMessage::new(response.to_vec().ok()?, self.message.addr());
         match self.sender.send(response) {
             Err(e) => {
-                let elapsed = start.elapsed().as_millis();
-                log::error!("[{}] Failed to respond back [{}ms]: {:?}", id, elapsed, e);
+                log::error!("[{}] Failed to respond back [{}]: {:?}", id, start.t(), e);
             }
             Ok(_) => {
-                let elapsed = start.elapsed().as_millis();
-                log::info!("[{}] Successfully responded back [{}ms]", id, elapsed);
+                log::info!("[{}] Successfully responded back [{}]", id, start.t());
             }
         }
         Some(())
