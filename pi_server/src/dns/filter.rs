@@ -80,7 +80,7 @@ pub async fn update_filters(block_file: &str) -> anyhow::Result<()> {
         }
 
         let start = Instant::now();
-        if let Err(e) = load_block(block_file).await {
+        if let Err(e) = load_block(Some(block_file)).await {
             log::warn!("Failed to update block list: {}", e);
         } else {
             log::info!("Successfully updated block list in {}", start.t());
@@ -90,37 +90,43 @@ pub async fn update_filters(block_file: &str) -> anyhow::Result<()> {
     }
 }
 
-async fn load_allow() -> anyhow::Result<()> {
-    let filters = load_db_filters(fetch_filters(true).await?).await?;
+pub async fn load_allow() -> anyhow::Result<()> {
+    let filters = load_db_filters(fetch_filters(Some(true)).await?).await?;
     let mut lock = ALLOW.get().unwrap().write().await;
     let _ = std::mem::replace(&mut *lock, filters);
     Ok(())
 }
 
-async fn load_block(block_file: &str) -> anyhow::Result<()> {
-    let mut filters = load_db_filters(fetch_filters(false).await?).await?;
-
-    let block_file = Path::new(block_file);
-    let last_updated = if block_file.exists() {
-        block_file.metadata()?.modified()?.elapsed()?
-    } else {
-        Duration::from_millis(0)
-    };
-    log::info!("Block list file was modified {} ago", last_updated.t());
+pub async fn load_block(block_file: Option<&str>) -> anyhow::Result<()> {
+    let mut filters = load_db_filters(fetch_filters(Some(false)).await?).await?;
     let mut bl_filter = None;
-    if last_updated > AN_HOUR {
+    if let Some(block_file) = block_file.map(|f| Path::new(f)) {
+        let last_updated = if block_file.exists() {
+            block_file.metadata()?.modified()?.elapsed()?
+        } else {
+            Duration::from_millis(0)
+        };
+        log::info!("Block list file was modified {} ago", last_updated.t());
+        if last_updated > AN_HOUR {
+            let read_lock = BLOCK.get().unwrap().read().await;
+            if let Some((_, f)) = read_lock.filters.iter().find(|f| f.0 == BL_NAME) {
+                log::info!("Block list hasn't been updated lately, no need to read from disk");
+                bl_filter = Some(f.clone());
+            }
+        }
+        if bl_filter.is_none() {
+            if let Ok(domains) = load_block_list(block_file).await {
+                let domains = sort_domains(domains);
+                bl_filter = Some(Filter::DomainMatch(domains));
+            } else {
+                log::warn!("Failed to read block_list file");
+            }
+        }
+    } else {
         let read_lock = BLOCK.get().unwrap().read().await;
         if let Some((_, f)) = read_lock.filters.iter().find(|f| f.0 == BL_NAME) {
-            log::info!("Block list hasn't been updated lately, no need to read from disk");
+            log::info!("No block file is passed, hence just copying the old block list");
             bl_filter = Some(f.clone());
-        }
-    }
-    if bl_filter.is_none() {
-        if let Ok(domains) = load_block_list(block_file).await {
-            let domains = sort_domains(domains);
-            bl_filter = Some(Filter::DomainMatch(domains));
-        } else {
-            log::warn!("Failed to read block_list file");
         }
     }
     if let Some(bl_filter) = bl_filter {

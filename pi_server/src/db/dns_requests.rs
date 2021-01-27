@@ -1,12 +1,13 @@
 use std::collections::HashSet;
 use std::time::Instant;
 
+use chrono::Local;
 use sqlx::types::chrono::NaiveDateTime;
 use trust_dns_proto::op::Message;
 
 use crate::db::POOL;
+use crate::web::ws_dns_req;
 use crate::Timer;
-use chrono::Local;
 
 #[derive(Debug, sqlx::FromRow)]
 pub struct DnsRequest {
@@ -21,12 +22,12 @@ pub struct DnsRequest {
     pub resp_ms: i64,
 }
 
-pub async fn fetch_dns_reqs(from: NaiveDateTime) -> anyhow::Result<Vec<DnsRequest>> {
+pub async fn fetch_dns_reqs(limit: u32) -> anyhow::Result<Vec<DnsRequest>> {
     let start = Instant::now();
     let res = sqlx::query_as!(
         DnsRequest,
-        "select * from dns_requests where req_time >= ?",
-        from
+        "select * from dns_requests order by req_time desc limit ?",
+        limit
     )
     .fetch_all(POOL.get().unwrap())
     .await?;
@@ -34,7 +35,8 @@ pub async fn fetch_dns_reqs(from: NaiveDateTime) -> anyhow::Result<Vec<DnsReques
     Ok(res)
 }
 
-pub async fn save(
+pub async fn save_request(
+    req_time: NaiveDateTime,
     msg: &Message,
     filtered: Option<bool>,
     reason: Option<String>,
@@ -51,13 +53,12 @@ pub async fn save(
         .into_iter()
         .collect::<Vec<_>>()
         .join(" ");
-
     let start = Instant::now();
-    let done = sqlx::query!(
-        r"
-insert into 
-dns_requests(req_type, request, response, filtered, reason, responded, resp_ms)
-values(?, ?, ?, ?, ?, ?, ?)",
+    let req_id = sqlx::query!(
+        r"insert into 
+dns_requests(req_time, req_type, request, response, filtered, reason, responded, resp_ms)
+values(?, ?, ?, ?, ?, ?, ?, ?)",
+        req_time,
         req_type,
         req,
         res,
@@ -67,9 +68,14 @@ values(?, ?, ?, ?, ?, ?, ?)",
         resp_ms
     )
     .execute(POOL.get().unwrap())
-    .await?;
+    .await?
+    .last_insert_rowid();
     log::debug!("[{}] DnsRequest insertion time: {}", msg.id(), start.t());
-    Ok(done.last_insert_rowid())
+
+    ws_dns_req(
+        req_id, req_time, req_type, req, res, filtered, reason, responded, resp_ms,
+    );
+    Ok(req_id)
 }
 
 pub async fn agg_by_time(

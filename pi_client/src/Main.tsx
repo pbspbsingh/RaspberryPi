@@ -15,7 +15,7 @@ export default function Main(): JSX.Element {
                     <Route path="/queries">
                         <Queries />
                     </Route>
-                    <Route path="/config">
+                    <Route path="/filters">
                         <Config />
                     </Route>
                     <Route path="/health">

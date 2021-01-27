@@ -45,7 +45,7 @@ export default function Dashboard(): JSX.Element {
                     {dashboardData != null && <p><b>Blocked: </b>{dashboardData.reject_count}/{dashboardData.total_count}
                     ({(100 * dashboardData.reject_count / dashboardData.total_count).toFixed(2)}%)</p>}
                 </div>
-                <p className="filter-date-range m-0">
+                <p className="filter-date-range">
                     Date Range:
                     {Object.entries(DATE_RANGE).map(([days, name], idx) =>
                     <span key={idx}>
@@ -91,9 +91,11 @@ export default function Dashboard(): JSX.Element {
                             <div className="card-body">
                                 <table className="table table-striped table-sm">
                                     <thead>
-                                        <th></th>
-                                        <th>Name</th>
-                                        <th>Count</th>
+                                        <tr>
+                                            <th></th>
+                                            <th>Name</th>
+                                            <th>Count</th>
+                                        </tr>
                                     </thead>
                                     <tbody>
                                         {Object.entries(dashboardData?.top_approved).map(([name, count], idx) => <tr key={idx}>
@@ -128,9 +130,11 @@ export default function Dashboard(): JSX.Element {
                             <div className="card-body">
                                 <table className="table table-striped table-sm">
                                     <thead>
-                                        <th></th>
-                                        <th>Name</th>
-                                        <th>Count</th>
+                                        <tr>
+                                            <th></th>
+                                            <th>Name</th>
+                                            <th>Count</th>
+                                        </tr>
                                     </thead>
                                     <tbody>
                                         {Object.entries(dashboardData?.top_rejected).map(([name, count], idx) => <tr key={idx}>

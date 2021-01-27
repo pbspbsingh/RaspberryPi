@@ -146,6 +146,31 @@ body {
                 .row {
                     margin: 20px 0;
                 }
+
+                .table {
+                    thead th {
+                        border-bottom-color: rgba(167, 167, 167, 1);
+                    }
+                    tbody {
+                        tr:last-child td {
+                            border-bottom: none;
+                        }
+                    }
+                }
+
+                .queries {
+                    tr {
+                        &.approved {
+                            background-color: #ccecd7;
+                        }
+                        &.blocked {
+                            background-color: #ff000026;
+                        }
+                        &.no-response {
+                            color: red;
+                        }
+                    }
+                }
             }
         }
     }

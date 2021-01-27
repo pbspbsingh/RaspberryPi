@@ -1,5 +1,6 @@
 use std::time::{Duration, Instant};
 
+use chrono::Local;
 use futures_util::StreamExt;
 use once_cell::sync::OnceCell;
 use tokio::net::{TcpListener, UdpSocket};
@@ -15,7 +16,7 @@ use trust_dns_proto::xfer::{DnsRequest, SerialMessage};
 use trust_dns_proto::BufStreamHandle;
 use trust_dns_server::server::TimeoutStream;
 
-use dns_requests::save;
+use dns_requests::save_request;
 
 use crate::db::dns_requests;
 pub use crate::dns::filter::update_filters;
@@ -106,6 +107,7 @@ struct MessageProcessor {
 impl MessageProcessor {
     async fn process(mut self) -> Option<()> {
         let start = Instant::now();
+        let req_time = Local::now().naive_local();
         let request = self.parse_message()?;
         if let Some(mut response) = self.forward_request(request.clone()).await {
             let mut filtered = None;
@@ -119,10 +121,14 @@ impl MessageProcessor {
             }
             self.respond_back(&response, &start)?;
             let resp_ms = start.elapsed().as_millis() as i64;
-            save(&response, filtered, cause, true, resp_ms).await.ok()?;
+            save_request(req_time, &response, filtered, cause, true, resp_ms)
+                .await
+                .ok()?;
         } else {
             let resp_ms = start.elapsed().as_millis() as i64;
-            save(&request, None, None, false, resp_ms).await.ok()?;
+            save_request(req_time, &request, None, None, false, resp_ms)
+                .await
+                .ok()?;
         }
         Some(())
     }

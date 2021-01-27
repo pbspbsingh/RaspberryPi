@@ -5,7 +5,7 @@ use pi_server::blocker::refresh_block_list;
 use pi_server::db::init_db;
 use pi_server::dns::{start_dns_server, update_filters};
 use pi_server::sysinfo::load_sys_info;
-use pi_server::web::start_web_server;
+use pi_server::web::{start_web_server, ws_sender};
 use pi_server::PiConfig;
 
 #[cfg(not(target_os = "windows"))]
@@ -27,6 +27,7 @@ async fn main() -> anyhow::Result<()> {
         load_sys_info(),
         update_filters(&config.block_list),
         refresh_block_list(&config.block_list),
+        ws_sender(),
     );
     run.map(|_| ())
 }
