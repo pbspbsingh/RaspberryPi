@@ -88,7 +88,7 @@ export function appReducer(state: AppState, action: Action): AppState {
             }
 
             const queries = [action.newQuery, ...state.queries.slice(0, -1)];
-            return { ...state, newQuery: undefined, queries }
+            return { ...state, queries, newQuery: undefined }
         }
         default: {
             console.log('Unexpected action:', action);

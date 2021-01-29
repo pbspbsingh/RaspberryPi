@@ -60,12 +60,10 @@ export default function Queries(): JSX.Element {
 }
 
 function tableContent(queries: DnsQuery[]) {
-    const items = [];
-    for (let i = 0; i < queries.length; i++) {
-        const { id, req_time, req_type, name, responded, filtered, reason, resp_time } = queries[i];
+    return queries.map(({ id, req_time, req_type, name, responded, filtered, reason, resp_time }) => {
         const filterClass = filtered === true ? "approved" : filtered === false ? "blocked" : "";
         const respondedClass = responded === false ? "no-response" : "";
-        items.push(<tr key={id} className={`${filterClass} ${respondedClass}`}>
+        return (<tr key={id} className={`${filterClass} ${respondedClass}`}>
             <td>{new Date(req_time).toISOString()}</td>
             <td>{name}</td>
             <td>{req_type}</td>
@@ -73,8 +71,7 @@ function tableContent(queries: DnsQuery[]) {
             <td className="text-right">{resp_time} ms</td>
             <td>{responded === true ? "Yes" : responded === false ? "No" : ""}</td>
         </tr>);
-    }
-    return items;
+    });
 }
 
 async function loadQuery(dispatch: React.Dispatch<any>, querySize: number) {

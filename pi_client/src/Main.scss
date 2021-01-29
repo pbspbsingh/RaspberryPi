@@ -64,7 +64,9 @@ body {
             .navigation {
                 margin-top: 15px;
                 width: 100%;
+
                 li {
+                    position: relative;
                     padding: 25px 0;
                     border-bottom: 1px solid #f3f3f3;
 
@@ -94,8 +96,10 @@ body {
                     &.active::before {
                         content: " ";
                         background: #576a3d;
-                        border-radius: 10px;
+                        border-radius: 12px;
                         position: absolute;
+                        left: 0;
+                        top: 15px;
                         width: 6px;
                         height: 72px;
                     }
