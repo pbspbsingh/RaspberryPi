@@ -1,5 +1,4 @@
 import React, { createContext, useReducer } from "react";
-import connectWs from "./websocket";
 
 export const DATE_RANGE = {
     "1": "1 Day",
@@ -10,18 +9,37 @@ export const DATE_RANGE = {
 
 export const QUERY_SIZE = [100, 200, 300, 400, 500];
 
-export type Action = {
-    type: "SET_LOADING" | "SET_ERROR" | "UPDATE_DASHBOARD" | "UPDATE_QUERIES" | "NEW_QUERY",
-} & Partial<AppState>;
+export type AppAction = {
+    type: "SET_LOADING"
+} | {
+    type: "CLICKED_DAYS",
+    clickedDays: string,
+} | {
+    type: "SET_ERROR",
+    errorMsg: string,
+} | {
+    type: "UPDATE_DASHBOARD",
+    days: string,
+    dashboardData: DashboardData,
+} | {
+    type: "UPDATE_QUERIES",
+    querySize: number,
+    queries: DnsQuery[],
+} | {
+    type: "NEW_QUERY",
+    newQuery: DnsQuery,
+};
+
 
 export interface AppState {
-    days: keyof typeof DATE_RANGE,
+    clickedDays: string,
+    days: string,
     status: "LOADING" | "DONE" | "ERROR",
     errorMsg?: String,
+    dashLastUpdated: number,
     dashboardData?: DashboardData,
     querySize: number,
     queries?: DnsQuery[],
-    newQuery?: DnsQuery,
 }
 
 export interface DashboardData {
@@ -51,15 +69,20 @@ export interface DnsQuery {
 }
 
 export const INITIAL_STATE: AppState = {
+    clickedDays: "1",
     days: "1",
     status: "LOADING",
+    dashLastUpdated: 0,
     querySize: 100,
 }
 
-export function appReducer(state: AppState, action: Action): AppState {
+export function appReducer(state: AppState, action: AppAction): AppState {
     switch (action.type) {
         case "SET_LOADING": {
             return { ...state, status: "LOADING" };
+        }
+        case "CLICKED_DAYS": {
+            return { ...state, clickedDays: action.clickedDays };
         }
         case "SET_ERROR": {
             return { ...state, status: "ERROR", errorMsg: action.errorMsg };
@@ -70,6 +93,7 @@ export function appReducer(state: AppState, action: Action): AppState {
                 status: "DONE",
                 errorMsg: undefined,
                 days: action.days!!,
+                dashLastUpdated: Date.now(),
                 dashboardData: action.dashboardData
             };
         }
@@ -87,8 +111,12 @@ export function appReducer(state: AppState, action: Action): AppState {
                 return state;
             }
 
-            const queries = [action.newQuery, ...state.queries.slice(0, -1)];
-            return { ...state, queries, newQuery: undefined }
+            let queries = [action.newQuery, ...state.queries.slice(0, -1)];
+            if (queries.length > state.querySize) {
+                console.warn(`Queries size found ${queries.length} when expected was ${state.querySize}`);
+                queries = queries.slice(0, state.querySize);
+            }
+            return { ...state, queries }
         }
         default: {
             console.log('Unexpected action:', action);
@@ -99,12 +127,11 @@ export function appReducer(state: AppState, action: Action): AppState {
 
 export const AppContext = createContext({
     state: INITIAL_STATE,
-    dispatch: (_action: Action) => { }
+    dispatch: (_action: AppAction) => { }
 });
 
 export function AppContextProvider(props: React.Props<any>) {
     const [state, dispatch] = useReducer(appReducer, INITIAL_STATE);
-    connectWs(dispatch);
     return (
         <AppContext.Provider value={{ state, dispatch }}>
             {props.children}

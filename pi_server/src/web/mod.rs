@@ -19,7 +19,7 @@ use crate::web::config::{get_config, save_config};
 use crate::web::dashboard::fetch_dashboard;
 use crate::web::queries::fetch_queries;
 use crate::web::websocket::handle_ws;
-use crate::PiConfig;
+use crate::{PiConfig, PI_CONFIG};
 
 mod config;
 mod dashboard;
@@ -44,7 +44,8 @@ impl WebError {
     }
 }
 
-pub async fn start_web_server(config: &PiConfig) -> anyhow::Result<()> {
+pub async fn start_web_server() -> anyhow::Result<()> {
+    let PiConfig { web_port, .. } = PI_CONFIG.get().unwrap();
     let dashboard = warp::get()
         .and(warp::path!("dashboard" / u32))
         .and_then(fetch_dashboard);
@@ -64,7 +65,7 @@ pub async fn start_web_server(config: &PiConfig) -> anyhow::Result<()> {
         .and(filters::path::full())
         .map(map_static_assets);
 
-    log::info!("Starting web server at port {}", config.web_port);
+    log::info!("Starting web server at port {}", web_port);
 
     let filters = dashboard
         .or(queries)
@@ -73,7 +74,7 @@ pub async fn start_web_server(config: &PiConfig) -> anyhow::Result<()> {
         .or(websocket)
         .or(assets);
     Ok(warp::serve(filters.with(compression::gzip()))
-        .run(([0, 0, 0, 0], config.web_port as u16))
+        .run(([0, 0, 0, 0], *web_port as u16))
         .await)
 }
 

@@ -1,7 +1,7 @@
 import React, { useContext, useEffect } from 'react';
 import { Loader } from '../Icons';
-import load from '../requests';
 import { AppContext, QUERY_SIZE, DnsQuery } from '../State';
+import { loadQuery } from '../dataFetcher';
 
 export default function Queries(): JSX.Element {
     const { state, dispatch } = useContext(AppContext);
@@ -72,20 +72,4 @@ function tableContent(queries: DnsQuery[]) {
             <td>{responded === true ? "Yes" : responded === false ? "No" : ""}</td>
         </tr>);
     });
-}
-
-async function loadQuery(dispatch: React.Dispatch<any>, querySize: number) {
-    dispatch({ type: "SET_LOADING" });
-    try {
-        const request = await load(`/queries/${querySize}`);
-        if (request == null) {
-            console.log("Previous query request was cancelled.");
-            return;
-        }
-        const queries: [DnsQuery] = await request.json();
-        dispatch({ type: "UPDATE_QUERIES", querySize, queries });
-    } catch (e) {
-        console.warn(e);
-        dispatch({ type: "SET_ERROR", errorMsg: e.message });
-    }
 }

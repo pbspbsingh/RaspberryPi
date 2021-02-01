@@ -4,17 +4,22 @@ import ReactApexChart from 'react-apexcharts';
 import { Loader } from '../Icons';
 import { AppContext, DATE_RANGE } from '../State';
 
-import load from '../requests';
+import { loadDashboard } from '../dataFetcher';
+
+const REFRESH_TIMEOUT = 1 * 60 * 1000;
 
 export default function Dashboard(): JSX.Element {
     const { state, dispatch } = useContext(AppContext);
-    const { status, errorMsg, dashboardData } = state;
+    const { status, clickedDays, errorMsg, dashLastUpdated, dashboardData, days } = state;
 
     useEffect(() => {
-        if (dashboardData == null) {
-            loadDashboard(dispatch, state.days);
+        if (days !== clickedDays || status !== "DONE" || Date.now() - dashLastUpdated > REFRESH_TIMEOUT) {
+            dispatch({ type: "SET_LOADING" });
+            loadDashboard(dispatch, clickedDays);
         }
-    }, []);
+        const refresher = setInterval(() => loadDashboard(dispatch, clickedDays), REFRESH_TIMEOUT);
+        return () => clearInterval(refresher);
+    }, [clickedDays]);
 
     const dnsRequestsData = [{
         name: "Rejected",
@@ -47,22 +52,26 @@ export default function Dashboard(): JSX.Element {
                 </div>
                 <p className="filter-date-range">
                     Date Range:
-                    {Object.entries(DATE_RANGE).map(([days, name], idx) =>
+                    {Object.entries(DATE_RANGE).map(([currDays, name], idx) =>
                     <span key={idx}>
-                        <a href="#" className={state.days === days ? "selected" : ""}
-                            onClick={() => loadDashboard(dispatch, days)}> {name} </a>
+                        <a href="#" className={days === currDays ? "selected" : ""}
+                            onClick={() => { dispatch({ type: "CLICKED_DAYS", clickedDays: currDays }) }}> {name} </a>
                         {idx !== datesLength - 1 && <> | </>}
                     </span>
                 )}
                 </p>
             </header>
-            {status === "LOADING" && <div className="full-screen-center"><Loader /></div>}
-            {status === "ERROR" && <div className="full-screen-center">
-                <div className="alert alert-danger" role="alert">
-                    <p>Something went wrong! 😢</p>
-                    {errorMsg != null && <p>{errorMsg}</p>}
-                </div>
-            </div>}
+            {status === "LOADING" &&
+                <div className="full-screen-center">
+                    <Loader />
+                </div>}
+            {status === "ERROR" &&
+                <div className="full-screen-center">
+                    <div className="alert alert-danger" role="alert">
+                        <p>Something went wrong! 😢</p>
+                        {errorMsg != null && <p>{errorMsg}</p>}
+                    </div>
+                </div>}
             {status === "DONE" && dashboardData != null && <>
                 <div className="row">
                     <div className="col col-lg-12 col-md-12 col-sm-12">
@@ -153,20 +162,9 @@ export default function Dashboard(): JSX.Element {
     );
 }
 
-async function loadDashboard(dispatcher: React.Dispatch<any>, days: string) {
-    dispatcher({ type: "SET_LOADING" });
-    try {
-        const request = await load(`/dashboard/${days}`);
-        if (request == null) return;
-        dispatcher({ type: "UPDATE_DASHBOARD", days, dashboardData: await request.json() });
-    } catch (e) {
-        console.warn(e);
-        dispatcher({ type: "SET_ERROR", errorMsg: e.message });
-    }
-}
-
 const DNS_REQUEST_OPTIONS = {
     chart: {
+        animations: { enabled: false },
         height: 350,
         stacked: true,
         type: 'area',

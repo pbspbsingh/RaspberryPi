@@ -6,7 +6,7 @@ use pi_server::db::init_db;
 use pi_server::dns::{start_dns_server, update_filters};
 use pi_server::sysinfo::load_sys_info;
 use pi_server::web::{start_web_server, ws_sender};
-use pi_server::PiConfig;
+use pi_server::{PiConfig, PI_CONFIG};
 
 #[cfg(not(target_os = "windows"))]
 #[global_allocator]
@@ -14,29 +14,27 @@ static GLOBAL: Jemalloc = Jemalloc;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let config = PiConfig::read_config().await?;
-    println!("Starting with {:#?}", config);
+    PiConfig::read_config().await?;
 
-    init_logger(&config.log_config).await?;
-
-    init_db(&config).await?;
+    init_logger().await?;
+    init_db().await?;
 
     let run = tokio::try_join!(
-        start_dns_server(&config),
-        start_web_server(&config),
+        start_dns_server(),
+        start_web_server(),
         load_sys_info(),
-        update_filters(&config.block_list),
-        refresh_block_list(&config.block_list),
+        update_filters(),
+        refresh_block_list(),
         ws_sender(),
     );
     run.map(|_| ())
 }
 
-async fn init_logger(config_file: impl AsRef<str>) -> anyhow::Result<()> {
+async fn init_logger() -> anyhow::Result<()> {
     use std::path::Path;
     use tokio::fs;
 
-    let config_file = config_file.as_ref();
+    let config_file = &PI_CONFIG.get().unwrap().log_config;
     if !Path::new(config_file).exists() {
         fs::write(config_file, DEFAULT_LOG_CONFIG).await?;
     }

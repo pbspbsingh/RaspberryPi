@@ -5,32 +5,39 @@ use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::{Executor, SqlitePool};
 use tokio::time::Duration;
 
-use crate::PiConfig;
+use crate::{PiConfig, PI_CONFIG};
 
+pub mod block_list;
 pub mod dns_requests;
 pub mod filters;
 pub mod sys_info;
 
 static POOL: OnceCell<SqlitePool> = OnceCell::new();
 
-pub async fn init_db(config: &PiConfig) -> anyhow::Result<()> {
-    log::info!("Connecting db sqlite://{}?mode=rw", config.db_path);
-    if !Path::new(&config.db_path).exists() {
+pub async fn init_db() -> anyhow::Result<()> {
+    let PiConfig {
+        db_path,
+        db_pool,
+        db_opt,
+        ..
+    } = PI_CONFIG.get().unwrap();
+    log::info!("Connecting db sqlite://{}?mode=rw", db_path);
+    if !Path::new(db_path).exists() {
         log::info!("DB hasn't been created yet, creating it...");
-        create_db(&config.db_path).await?;
+        create_db(db_path).await?;
     }
 
     let pool = SqlitePoolOptions::new()
-        .max_connections(config.db_pool)
+        .max_connections(*db_pool)
         .connect_timeout(Duration::from_secs(15))
-        .connect(&format!("sqlite://{}?mode=rw", config.db_path))
+        .connect(&format!("sqlite://{}?mode=rw", db_path))
         .await?;
     POOL.set(pool)
         .map_err(|_| anyhow::anyhow!("Couldn't set sqlite pool"))?;
 
-    if !config.db_opt.is_empty() {
-        log::info!("Executing '{}' on db", config.db_opt);
-        POOL.get().unwrap().execute(&*config.db_opt).await?;
+    if !db_opt.is_empty() {
+        log::info!("Executing '{}' on db", db_opt);
+        POOL.get().unwrap().execute(&**db_opt).await?;
     }
 
     log::info!("Database initialization done!");

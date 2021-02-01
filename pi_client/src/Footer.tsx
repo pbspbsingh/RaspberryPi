@@ -1,5 +1,4 @@
-import React, { useEffect, useRef } from 'react';
-// import { createPopperLite } from '@popperjs/core';
+import React, { useRef } from 'react';
 
 export default function Footer(): JSX.Element {
     const about = useRef<HTMLAnchorElement>(null);

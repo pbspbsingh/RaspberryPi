@@ -1,6 +1,7 @@
 use std::env;
 use std::path::Path;
 
+use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use tokio::fs;
@@ -14,6 +15,8 @@ pub mod http_client;
 pub mod sysinfo;
 mod timer;
 pub mod web;
+
+pub static PI_CONFIG: OnceCell<PiConfig> = OnceCell::new();
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PiConfig {
@@ -41,7 +44,7 @@ impl PiConfig {
         }
     }
 
-    pub async fn read_config() -> anyhow::Result<PiConfig> {
+    pub async fn read_config() -> anyhow::Result<()> {
         let config_file = env::args()
             .nth(1)
             .unwrap_or_else(|| String::from("config.json"));
@@ -54,6 +57,8 @@ impl PiConfig {
         };
 
         fs::write(config_file, &serde_json::to_string_pretty(&config)?).await?;
-        Ok(config)
+        PI_CONFIG
+            .set(config)
+            .map_err(|_| anyhow::anyhow!("Failed to read PiConfig"))
     }
 }

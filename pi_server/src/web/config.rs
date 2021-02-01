@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
 use chrono::Local;
@@ -8,16 +8,18 @@ use serde::{Deserialize, Serialize};
 use warp::reply::json;
 use warp::{Rejection, Reply};
 
+use crate::db::block_list::{db_block_list, replace_block_list};
 use crate::db::filters::{fetch_filters, save_filters, DbFilter};
 use crate::dns::domain::Domain;
 use crate::dns::filter;
 use crate::web::WebError;
-use crate::Timer;
+use crate::{blocker, Timer};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Config {
     approve_rules: Vec<String>,
     reject_rules: Vec<String>,
+    block_list: Vec<(String, Option<i64>)>,
 }
 
 pub async fn get_config() -> Result<impl Reply, Rejection> {
@@ -25,6 +27,7 @@ pub async fn get_config() -> Result<impl Reply, Rejection> {
     let mut config = Config {
         approve_rules: vec![],
         reject_rules: vec![],
+        block_list: vec![],
     };
     let filters = fetch_filters(None).map_err(WebError::new).await?;
     let size = filters.len();
@@ -48,6 +51,13 @@ pub async fn get_config() -> Result<impl Reply, Rejection> {
             config.reject_rules.push(expr);
         }
     }
+    config.block_list.extend(
+        db_block_list()
+            .await
+            .map_err(WebError::new)?
+            .into_iter()
+            .map(|bl| (bl.b_src, bl.b_count)),
+    );
     log::debug!("Fetched {} rules in {}", size, start.t());
     Ok(json(&config))
 }
@@ -72,13 +82,42 @@ pub async fn save_config(form: HashMap<String, String>) -> Result<impl Reply, Re
                 .filter_map(|r| extract_filter(r, false)),
         );
     }
+    let mut bl_updated = false;
+    if let Some(block_list) = form.get("updatedBlockList") {
+        let old_block_list = db_block_list().await.map_err(WebError::new)?;
+        let old_block_list = old_block_list
+            .iter()
+            .map(|bl| &bl.b_src as &str)
+            .collect::<HashSet<_>>();
+        let new_block_list = block_list
+            .split('\n')
+            .map(str::trim)
+            .filter(|s| s.len() > 0)
+            .collect::<HashSet<_>>();
+        if old_block_list != new_block_list {
+            log::info!(
+                "Block list has been updated {} vs {}",
+                old_block_list.len(),
+                new_block_list.len()
+            );
+            replace_block_list(new_block_list)
+                .await
+                .map_err(WebError::new)?;
+            bl_updated = true;
+        } else {
+            log::info!("Block list hasn't been updated, nothing to do!");
+        }
+    }
     log::info!("Inserting {} values in filters", configs.len());
     save_filters(configs).await.map_err(WebError::new)?;
-    tokio::spawn(async {
+    tokio::spawn(async move {
         filter::load_allow().await.ok();
-        filter::load_block(None).await.ok();
+        filter::load_block().await.ok();
+        if bl_updated {
+            blocker::fetch_block_list(false).await.ok();
+        }
     });
-    Ok("Success!")
+    get_config().await
 }
 
 fn extract_filter(mut rule: &str, is_allow: bool) -> Option<DbFilter> {

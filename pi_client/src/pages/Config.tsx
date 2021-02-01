@@ -1,27 +1,62 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useEffect, useReducer } from 'react';
+import { Toast as Toaster } from 'bootstrap';
 import { Loader } from '../Icons';
-import { AppContext } from '../State';
 
 type ConfigState = {
     status: "LOADING" | "ERROR" | "DONE",
     approveRules: string[],
     rejectRules: string[],
-    updated?: boolean,
+    blockList: Array<[string, number]>
     updateBtnEnabled: boolean,
+    updated?: boolean,
 };
 
-const initialState: ConfigState = {
-    status: "LOADING",
-    approveRules: [],
-    rejectRules: [],
-    updateBtnEnabled: true,
+type Action = {
+    type: "LOADED",
+    approveRules: string[],
+    rejectRules: string[],
+    blockList: Array<[string, number]>
+} | {
+    type: "ERROR",
+} | {
+    type: "PROGRESS",
+} | {
+    type: "UPDATED",
+    updated: boolean,
+};
+
+function reduce(state: ConfigState, action: Action): ConfigState {
+    switch (action.type) {
+        case "LOADED": {
+            return { ...state, ...action, status: "DONE", updateBtnEnabled: true };
+        }
+        case "ERROR": {
+            return { ...state, status: "ERROR" };
+        }
+        case "PROGRESS": {
+            return { ...state, updateBtnEnabled: false };
+        }
+        case "UPDATED": {
+            return { ...state, updated: action.updated, updateBtnEnabled: true };
+        }
+        default: throw new Error("Unsupported reduction: " + action);
+    }
 }
 
+let updateToast: Toaster | null = null;
+
 export default function Config(): JSX.Element {
-    const [state, dispatch] = useState(initialState)
-    const { status, approveRules, rejectRules, updated } = state;
+    const [state, dispatch] = useReducer(reduce, {
+        status: "LOADING",
+        approveRules: [],
+        rejectRules: [],
+        blockList: [],
+        updateBtnEnabled: false,
+    });
+    const { status, approveRules, rejectRules, blockList, updated } = state;
     useEffect(() => {
         loadConfig(dispatch);
+        updateToast = new Toaster(document.getElementById("updateToast")!!, {});
     }, []);
 
     return (
@@ -40,8 +75,9 @@ export default function Config(): JSX.Element {
                     <p>Something went wrong! 😢</p>
                 </div>
             </div>}
+            <Toast updated={updated} />
             {status === "DONE" &&
-                <form action="/config" method="post" onSubmit={e => updateConfig(e, dispatch, state)}>
+                <form action="/config" method="post" onSubmit={e => updateConfig(e, dispatch)}>
                     <div className="row">
                         <div className="col col-lg-6 col-md-6 col-sm-12">
                             <div className="card">
@@ -77,55 +113,112 @@ export default function Config(): JSX.Element {
                             <input type="submit" value="Update" disabled={!state.updateBtnEnabled} />
                         </div>
                     </div>
-                    {updated != null && <div className="row">
-                        <div className="col d-flex justify-content-center">
-                            {false === updated && <div className="alert alert-danger" role="alert">
-                                <p>Failed to updated! 😥</p>
-                            </div>}
-                            {true === updated && <div className="alert alert-success" role="alert">
-                                <p>Updated Successfully! 😎</p>
-                            </div>}
+                    <div className="row">
+                        <div className="col col-lg-6 col-md-6 col-sm-12">
+                            <div className="card">
+                                <div className="card-header">
+                                    Current Block List
+                                </div>
+                                <div className="card-body">
+                                    <table className="table table-striped table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Source</th>
+                                                <th>Count</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {blockList.map(([source, count], idx) => <tr key={idx}>
+                                                <td>{source}</td>
+                                                <td>{count}</td>
+                                            </tr>)}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
-                    </div>}
+                        <div className="col col-lg-6 col-md-6 col-sm-12">
+                            <div className="card">
+                                <div className="card-header">
+                                    Update Block List
+                                </div>
+                                <div className="card-body">
+                                    <textarea
+                                        className="form-control"
+                                        style={{ marginTop: "25px", lineHeight: 2.07 }}
+                                        name="updatedBlockList"
+                                        defaultValue={blockList.map(([source]) => source).join("\n")}
+                                        rows={blockList.length + 2} />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="row">
+                            <div className="col d-flex flex-column justify-content-center">
+                                <input type="submit" value="Update" disabled={!state.updateBtnEnabled} />
+                            </div>
+                        </div>
+                    </div>
                 </form>
             }
         </section>
     );
 }
 
-async function loadConfig(distpach: React.Dispatch<ConfigState>) {
+const Toast = ({ updated }: { updated?: boolean }) => (
+    <div className="toast-container position-fixed" style={{ zIndex: 10, right: "50px" }}>
+        <div id="updateToast" className="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div className="toast-header">
+                <strong className="me-auto">Config status</strong>
+                <button type="button" className="btn-close ms-auto me-2" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div className="toast-body">
+                {false === updated && <div className="alert alert-danger" role="alert">
+                    <p>Failed to updated! 😥</p>
+                </div>}
+                {true === updated && <div className="alert alert-success center-align" role="alert">
+                    <p>Updated Successfully! 😎</p>
+                </div>}
+            </div>
+        </div>
+    </div>
+);
+
+async function loadConfig(dispatch: React.Dispatch<Action>) {
     try {
         const request = await fetch('/config');
         const response = await request.json();
-        distpach({
-            ...initialState,
-            status: "DONE",
+        dispatch({
+            type: "LOADED",
             approveRules: response.approve_rules,
             rejectRules: response.reject_rules,
+            blockList: response.block_list,
         });
     } catch (e) {
         console.warn("Fetching config failed", e);
-        distpach({ ...initialState, status: "ERROR" });
+        dispatch({ type: "ERROR" });
     }
 }
 
-async function updateConfig(e: React.FormEvent, dispatch: React.Dispatch<ConfigState>, state: ConfigState) {
+async function updateConfig(e: React.FormEvent, dispatch: React.Dispatch<Action>) {
     e.preventDefault();
 
-    dispatch({ ...state, updateBtnEnabled: false });
+    updateToast?.hide();
+    dispatch({ type: "PROGRESS" });
+
     const formData = new FormData(e.target as HTMLFormElement)
     try {
-        const response = await fetch('/config', {
+        const request = await fetch('/config', {
             method: 'post',
             body: new URLSearchParams([...formData as any])
         });
-        if (response.status === 200) {
-            dispatch({ ...state, updated: true, updateBtnEnabled: true });
+        if (request.status === 200) {
+            dispatch({ type: "UPDATED", updated: true });
         } else {
-            dispatch({ ...state, updated: false, updateBtnEnabled: true });
+            throw new Error("Config update failed: " + request.status);
         }
     } catch (e) {
         console.error("failed to update config", e);
-        dispatch({ ...state, updated: false, updateBtnEnabled: true });
+        dispatch({ type: "UPDATED", updated: false });
     }
+    updateToast?.show();
 }

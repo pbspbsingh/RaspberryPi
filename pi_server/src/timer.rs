@@ -49,8 +49,9 @@ impl Timer for Duration {
 
 #[cfg(test)]
 mod test {
-    use crate::Timer;
     use std::time::Duration;
+
+    use crate::Timer;
 
     #[test]
     fn test() {

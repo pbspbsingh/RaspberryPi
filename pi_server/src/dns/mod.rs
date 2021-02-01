@@ -21,7 +21,7 @@ use dns_requests::save_request;
 use crate::db::dns_requests;
 pub use crate::dns::filter::update_filters;
 use crate::dns::filter::Filters;
-use crate::{PiConfig, Timer};
+use crate::{PiConfig, Timer, PI_CONFIG};
 
 pub mod domain;
 pub mod filter;
@@ -29,15 +29,20 @@ pub mod filter;
 static ALLOW: OnceCell<RwLock<Filters>> = OnceCell::new();
 static BLOCK: OnceCell<RwLock<Filters>> = OnceCell::new();
 
-pub async fn start_dns_server(config: &PiConfig) -> anyhow::Result<()> {
-    log::info!("Forwarding dns requests to {}", config.forward_server);
-    let connection = UdpClientStream::<UdpSocket>::new(config.forward_server.parse()?);
+pub async fn start_dns_server() -> anyhow::Result<()> {
+    let PiConfig {
+        forward_server,
+        dns_port,
+        ..
+    } = PI_CONFIG.get().unwrap();
+    log::info!("Forwarding dns requests to {}", forward_server);
+    let connection = UdpClientStream::<UdpSocket>::new(forward_server.parse()?);
     let (client, req_sender) = AsyncClient::connect(connection).await?;
     let _ = tokio::spawn(req_sender);
 
     tokio::try_join!(
-        register_udp(client.clone(), config.dns_port),
-        register_tcp(client, config.dns_port)
+        register_udp(client.clone(), *dns_port),
+        register_tcp(client, *dns_port)
     )?;
     Ok(())
 }
@@ -162,6 +167,10 @@ impl MessageProcessor {
     async fn filter(&self, request: &Message) -> Option<(String, bool)> {
         let mut block_reason = None;
         for query in request.queries() {
+            if !(query.query_type() == RecordType::A || query.query_type() == RecordType::AAAA) {
+                return None;
+            }
+
             let name = query.name();
             if let Some(allow) = ALLOW.get() {
                 if let Some(allow_name) = { allow.read().await.check(name) } {
