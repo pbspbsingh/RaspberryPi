@@ -35,6 +35,9 @@ export function useDataFetcher() {
                     if (payload.query != null) {
                         dispatch({ type: "NEW_QUERY", newQuery: payload.query });
                     }
+                    if (payload.health != null) {
+                        dispatch({ type: "NEW_HEALTH", newHealth: payload.health });
+                    }
                 } catch (e) {
                     console.warn("Failed to parse ws message", e);
                 }
@@ -69,6 +72,18 @@ export async function loadQuery(dispatch: React.Dispatch<AppAction>, querySize: 
         const request = await fetch(`/queries/${querySize}`);
         const queries: DnsQuery[] = await request.json();
         dispatch({ type: "UPDATE_QUERIES", querySize, queries });
+    } catch (e) {
+        console.warn(e);
+        dispatch({ type: "SET_ERROR", errorMsg: e.message });
+    }
+}
+
+export async function loadHealth(dispatch: React.Dispatch<AppAction>, days: string) {
+    dispatch({ type: "SET_LOADING" });
+    try {
+        const request = await fetch(`/health/${days}`);
+        const health: Array<{ name: string, data: [number, number][] }> = await request.json();
+        dispatch({ type: "UPDATE_HEALTH", days, health });
     } catch (e) {
         console.warn(e);
         dispatch({ type: "SET_ERROR", errorMsg: e.message });

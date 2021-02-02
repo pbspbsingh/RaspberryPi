@@ -28,6 +28,18 @@ export type AppAction = {
 } | {
     type: "NEW_QUERY",
     newQuery: DnsQuery,
+} | {
+    type: "UPDATE_HEALTH",
+    days: string,
+    health: Array<{ name: string, data: Array<[number, number]> }>
+} | {
+    type: "NEW_HEALTH",
+    newHealth: {
+        time: number,
+        cpu_avg?: number,
+        cpu_temp?: number,
+        memory?: number,
+    }
 };
 
 
@@ -40,6 +52,7 @@ export interface AppState {
     dashboardData?: DashboardData,
     querySize: number,
     queries?: DnsQuery[],
+    health?: Array<{ name: string, data: Array<[number, number]> }>
 }
 
 export interface DashboardData {
@@ -92,7 +105,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
                 ...state,
                 status: "DONE",
                 errorMsg: undefined,
-                days: action.days!!,
+                days: action.days,
                 dashLastUpdated: Date.now(),
                 dashboardData: action.dashboardData
             };
@@ -117,6 +130,30 @@ export function appReducer(state: AppState, action: AppAction): AppState {
                 queries = queries.slice(0, state.querySize);
             }
             return { ...state, queries }
+        }
+        case "UPDATE_HEALTH": {
+            return {
+                ...state,
+                status: "DONE",
+                errorMsg: undefined,
+                days: action.days,
+                health: action.health,
+            };
+        }
+        case "NEW_HEALTH": {
+            const health = state.health;
+            if (health == null || health.length != 3) { return state; }
+            const { time, cpu_avg, memory, cpu_temp } = action.newHealth;
+            if (cpu_avg != null) {
+                health[0].data.push([time, cpu_avg]);
+            }
+            if (memory != null) {
+                health[1].data.push([time, memory]);
+            }
+            if (cpu_temp != null) {
+                health[2].data.push([time, cpu_temp]);
+            }
+            return { ...state, health };
         }
         default: {
             console.log('Unexpected action:', action);

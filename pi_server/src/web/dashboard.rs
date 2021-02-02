@@ -44,7 +44,7 @@ pub async fn fetch_dashboard(days: u32) -> Result<impl Reply, Rejection> {
     for (time, count, res_time, filtered) in agg_by_time(from).await.map_err(WebError::new)? {
         let time = time.timestamp_millis() as u64;
         let count = count as u64;
-        let res_time = format!("{:.2}", res_time).parse().unwrap();
+        let res_time = (res_time * 100.).trunc() / 100.; // format!("{:.2}", res_time).parse().unwrap();
 
         info.total_count += count;
         match filtered {

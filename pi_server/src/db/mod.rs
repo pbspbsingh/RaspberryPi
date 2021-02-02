@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use chrono::Local;
 use once_cell::sync::OnceCell;
 use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::{Executor, SqlitePool};
@@ -39,7 +40,7 @@ pub async fn init_db() -> anyhow::Result<()> {
         log::info!("Executing '{}' on db", db_opt);
         POOL.get().unwrap().execute(&**db_opt).await?;
     }
-
+    tokio::spawn(clean_old_entries());
     log::info!("Database initialization done!");
     Ok(())
 }
@@ -55,4 +56,27 @@ async fn create_db(db_path: &str) -> anyhow::Result<()> {
         .await?;
     log::info!("Created a new database file '{}'", db_path);
     Ok(())
+}
+
+async fn clean_old_entries() {
+    async fn delete() -> anyhow::Result<()> {
+        let overflow = Local::now().naive_local() - chrono::Duration::days(14);
+        let count = sqlx::query!("delete from dns_requests where req_time < ?", overflow)
+            .execute(POOL.get().unwrap())
+            .await?
+            .rows_affected();
+        log::warn!("Deleted {} entries from dns_requests table", count);
+
+        let count = sqlx::query!("delete from sys_info where s_time < ?", overflow)
+            .execute(POOL.get().unwrap())
+            .await?
+            .rows_affected();
+        log::warn!("Deleted {} entries from sys_info table", count);
+
+        Ok(())
+    }
+    loop {
+        delete().await.ok();
+        tokio::time::sleep(Duration::from_secs(24 * 60 * 60)).await;
+    }
 }

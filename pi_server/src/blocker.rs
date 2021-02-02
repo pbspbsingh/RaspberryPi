@@ -27,6 +27,7 @@ pub async fn refresh_block_list() -> anyhow::Result<()> {
 }
 
 pub async fn load_block_list(block_file: impl AsRef<Path>) -> anyhow::Result<Vec<Domain>> {
+    let _lock = UPDATE_LOCK.get().unwrap().try_lock()?;
     let start = Instant::now();
     let mut list = Vec::new();
     let mut buff = String::with_capacity(100);

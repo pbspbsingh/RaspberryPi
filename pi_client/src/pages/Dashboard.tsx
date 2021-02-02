@@ -184,6 +184,7 @@ const DNS_REQUEST_OPTIONS = {
 
 const MS_OPTIONS = {
     chart: {
+        animations: { enabled: false },
         height: 350,
         zoom: { enabled: true }
     },

@@ -87,7 +87,7 @@ pub async fn save_config(form: HashMap<String, String>) -> Result<impl Reply, Re
         let old_block_list = db_block_list().await.map_err(WebError::new)?;
         let old_block_list = old_block_list
             .iter()
-            .map(|bl| &bl.b_src as &str)
+            .map(|bl| bl.b_src.trim())
             .collect::<HashSet<_>>();
         let new_block_list = block_list
             .split('\n')

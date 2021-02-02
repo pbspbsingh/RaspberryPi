@@ -12,17 +12,20 @@ use warp::reject::Reject;
 use warp::{filters, Filter};
 use zip::ZipArchive;
 
+pub use health::ws_health_info;
 pub use queries::ws_dns_req;
 pub use websocket::ws_sender;
 
 use crate::web::config::{get_config, save_config};
 use crate::web::dashboard::fetch_dashboard;
+use crate::web::health::fetch_health_info;
 use crate::web::queries::fetch_queries;
 use crate::web::websocket::handle_ws;
 use crate::{PiConfig, PI_CONFIG};
 
 mod config;
 mod dashboard;
+mod health;
 mod queries;
 mod websocket;
 
@@ -57,6 +60,9 @@ pub async fn start_web_server() -> anyhow::Result<()> {
         .and(warp::path("config"))
         .and(warp::body::form())
         .and_then(save_config);
+    let health = warp::get()
+        .and(warp::path!("health" / u32))
+        .and_then(fetch_health_info);
     let websocket = warp::get()
         .and(warp::path("websocket"))
         .and(warp::ws())
@@ -71,6 +77,7 @@ pub async fn start_web_server() -> anyhow::Result<()> {
         .or(queries)
         .or(config_fetch)
         .or(config_save)
+        .or(health)
         .or(websocket)
         .or(assets);
     Ok(warp::serve(filters.with(compression::gzip()))
