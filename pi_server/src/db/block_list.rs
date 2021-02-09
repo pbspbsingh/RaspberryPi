@@ -12,9 +12,12 @@ pub struct BlockListItem {
 }
 
 pub async fn db_block_list() -> anyhow::Result<Vec<BlockListItem>> {
-    Ok(sqlx::query_as!(BlockListItem, "select * from block_list")
-        .fetch_all(POOL.get().unwrap())
-        .await?)
+    Ok(sqlx::query_as!(
+        BlockListItem,
+        "select * from block_list order by b_count desc"
+    )
+    .fetch_all(POOL.get().unwrap())
+    .await?)
 }
 
 pub async fn update_block_list(bl: impl AsRef<[BlockListItem]>) -> anyhow::Result<()> {

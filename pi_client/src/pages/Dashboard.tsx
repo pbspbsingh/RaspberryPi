@@ -21,26 +21,9 @@ export default function Dashboard(): JSX.Element {
         return () => clearInterval(refresher);
     }, [clickedDays]);
 
-    const dnsRequestsData = [{
-        name: "Rejected",
-        data: dashboardData?.rejected
-    }, {
-        name: "Approved",
-        data: dashboardData?.approved
-    }, {
-        name: "Passed",
-        data: dashboardData?.passed
-    }];
-    const msData = [{
-        name: "Rejected",
-        data: dashboardData?.rejected_ms
-    }, {
-        name: "Approved",
-        data: dashboardData?.approved_ms
-    }, {
-        name: "Passed",
-        data: dashboardData?.passed_ms
-    }];
+    const dnsRequestsData = dashboardData?.dns_data ?? [];
+    const msData = dashboardData?.latency_data ?? [];
+
     const datesLength = Object.keys(DATE_RANGE).length;
     return (
         <section className="h-100">
@@ -124,7 +107,7 @@ export default function Dashboard(): JSX.Element {
                             </div>
                             <div className="card-body">
                                 <ReactApexChart
-                                    options={{ labels: Object.keys(dashboardData.queries ?? {}) }}
+                                    options={{ ...PIE_OPTIONS, labels: Object.keys(dashboardData.queries ?? {}) }}
                                     series={Object.values(dashboardData?.queries ?? {})}
                                     type="pie"
                                     height={370} />
@@ -170,7 +153,7 @@ const DNS_REQUEST_OPTIONS = {
         type: 'area',
         zoom: { enabled: true }
     },
-    colors: ['#ff49d7', '#66da26', '#6389e0'],
+    colors: ['#ff0000', '#fb6e87', '#22c522', '#8d4bf3'],
     dataLabels: { enabled: false },
     title: { text: 'DNS Requests', align: 'left' },
     tooltip: {
@@ -188,7 +171,7 @@ const MS_OPTIONS = {
         height: 350,
         zoom: { enabled: true }
     },
-    colors: ['#ff49d7', '#66da26', '#6389e0'],
+    colors: ['#fb6e87', '#22c522', '#8d4bf3'],
     dataLabels: { enabled: false },
     title: { text: 'Response Time (ms)', align: 'left' },
     tooltip: {
@@ -200,4 +183,8 @@ const MS_OPTIONS = {
     xaxis: { type: 'datetime' }
 };
 
-
+const PIE_OPTIONS = {
+    legend: {
+        position: 'bottom'
+    }
+};

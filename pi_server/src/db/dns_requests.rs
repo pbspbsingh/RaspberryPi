@@ -9,6 +9,8 @@ use crate::db::POOL;
 use crate::web::ws_dns_req;
 use crate::Timer;
 
+const PLOT_POINTS: i64 = 50;
+
 #[derive(Debug, sqlx::FromRow)]
 pub struct DnsRequest {
     pub req_id: i64,
@@ -81,7 +83,7 @@ values(?, ?, ?, ?, ?, ?, ?, ?)",
 pub async fn agg_by_time(
     from: NaiveDateTime,
 ) -> anyhow::Result<Vec<(NaiveDateTime, i64, f64, Option<bool>)>> {
-    let agg_time = (Local::now().naive_local() - from).num_seconds() / 50;
+    let agg_time = (Local::now().naive_local() - from).num_seconds() / PLOT_POINTS;
     let start = Instant::now();
     let res = sqlx::query_as(&format!(
         r"select 
@@ -98,6 +100,28 @@ group by interval, filtered order by interval",
     .await?;
     log::info!(
         "Time taken to aggregate dns requests from {}: {}",
+        from,
+        start.t()
+    );
+    Ok(res)
+}
+
+pub async fn agg_failed_by_time(from: NaiveDateTime) -> anyhow::Result<Vec<(NaiveDateTime, i64)>> {
+    let agg_time = (Local::now().naive_local() - from).num_seconds() / PLOT_POINTS;
+    let start = Instant::now();
+    let res = sqlx::query_as(&format!(
+        r"select 
+datetime((strftime('%s', req_time) / {0}) * {0}, 'unixepoch') interval, 
+count(req_id)
+from dns_requests where req_time >= ? and responded = false
+group by interval order by interval",
+        agg_time
+    ))
+    .bind(from)
+    .fetch_all(POOL.get().unwrap())
+    .await?;
+    log::info!(
+        "Time taken to aggregate failed dns requests from {}: {}",
         from,
         start.t()
     );

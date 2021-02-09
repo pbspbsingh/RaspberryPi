@@ -41,6 +41,7 @@ impl Reject for WebError {}
 
 impl WebError {
     pub fn new(e: anyhow::Error) -> Self {
+        log::error!("Web Error: {}", e);
         WebError {
             error: e.to_string(),
         }
@@ -48,6 +49,7 @@ impl WebError {
 }
 
 pub async fn start_web_server() -> anyhow::Result<()> {
+    log::info!("Static web assets zipped size: {}", STATIC_ASSETS.len());
     let PiConfig { web_port, .. } = PI_CONFIG.get().unwrap();
     let dashboard = warp::get()
         .and(warp::path!("dashboard" / u32))
@@ -91,7 +93,7 @@ fn map_static_assets(path: FullPath) -> http::Result<Response<Vec<u8>>> {
         ["/", "/queries", "/filters", "/health"]
             .iter()
             .map(|s| *s)
-            .collect::<HashSet<_>>()
+            .collect()
     });
     let lookup_file = if home_urls.contains(path.as_str()) {
         "index.html"
@@ -117,7 +119,7 @@ fn map_static_assets(path: FullPath) -> http::Result<Response<Vec<u8>>> {
     }
     log::warn!("File not found: {}", lookup_file);
     response
-        .status(StatusCode::NOT_FOUND)
+        .status(StatusCode::INTERNAL_SERVER_ERROR)
         .header(header::CONTENT_TYPE, "text/plain")
-        .body(b"Not Found!".to_vec())
+        .body(b"Resource not found, or something went wrong!".to_vec())
 }

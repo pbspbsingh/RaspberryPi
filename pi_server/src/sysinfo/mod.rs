@@ -2,14 +2,18 @@ use std::time::Duration;
 
 use serde_json::json;
 use systemstat::{saturating_sub_bytes, Platform, System};
+use tokio::time::{self, Instant};
 
 use crate::db::sys_info;
 
 const MB: f32 = 1024.0 * 1024.0;
+const MINUTE: Duration = Duration::from_secs(60);
 
 pub async fn load_sys_info() -> anyhow::Result<()> {
+    let mut delay = Instant::now() + MINUTE;
     loop {
-        tokio::time::sleep(Duration::from_secs(60)).await;
+        time::sleep_until(delay).await;
+        delay += MINUTE;
 
         let sys = System::new();
         let cpu_avg = sys.load_average().map(|avg| avg.one).ok();

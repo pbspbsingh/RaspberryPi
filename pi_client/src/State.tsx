@@ -42,7 +42,6 @@ export type AppAction = {
     }
 };
 
-
 export interface AppState {
     clickedDays: string,
     days: string,
@@ -58,12 +57,8 @@ export interface AppState {
 export interface DashboardData {
     total_count: number,
     reject_count: number,
-    passed: [number, number][],
-    approved: [number, number][],
-    rejected: [number, number][],
-    passed_ms: [number, number][],
-    approved_ms: [number, number][],
-    rejected_ms: [number, number][],
+    dns_data: Array<{ name: string, data: Array<[number, number]> }>,
+    latency_data: Array<{ name: string, data: Array<[number, number]> }>
     queries: { [key: string]: number },
     top_approved: { [key: string]: number },
     top_rejected: { [key: string]: number },
