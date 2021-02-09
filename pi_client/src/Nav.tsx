@@ -15,11 +15,11 @@ export default function Nav(): JSX.Element {
                 <li className={makeActive(pathname, 'queries')}>
                     <Link to="/queries"><ClipBoard />Queries</Link>
                 </li>
-                <li className={makeActive(pathname, 'filters')}>
-                    <Link to="/filters"><Gear />Config</Link>
-                </li>
                 <li className={makeActive(pathname, 'health')}>
                     <Link to="/health"><ThermoMeter />Health</Link>
+                </li>
+                <li className={makeActive(pathname, 'filters')}>
+                    <Link to="/filters"><Gear />Config</Link>
                 </li>
             </ul>
         </nav>

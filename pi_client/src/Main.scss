@@ -49,6 +49,8 @@ body {
         min-height: 100vh;
 
         nav {
+            position: fixed;
+            height: 100vh;
             background: #fff;
             padding: 10px 0;
             width: 120px;
@@ -108,6 +110,7 @@ body {
         }
 
         main {
+            margin-left: 120px;
             flex: 1;
 
             footer {
