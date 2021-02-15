@@ -43,9 +43,9 @@ export default function Queries(): JSX.Element {
                                     <th>Time</th>
                                     <th>Name</th>
                                     <th>Type</th>
+                                    <th style={{width:"20%"}}>Response</th>
                                     <th>Reason</th>
-                                    <th>Turnaround</th>
-                                    <th>Responded</th>
+                                    <th>Latency</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -60,16 +60,16 @@ export default function Queries(): JSX.Element {
 }
 
 function tableContent(queries: DnsQuery[]) {
-    return queries.map(({ id, req_time, req_type, name, responded, filtered, reason, resp_time }) => {
+    return queries.map(({ id, req_time, req_type, name, responded, filtered, reason, resp_time, reply }) => {
         const filterClass = filtered === true ? "approved" : filtered === false ? "blocked" : "";
         const respondedClass = responded === false ? "no-response" : "";
         return (<tr key={id} className={`${filterClass} ${respondedClass}`}>
             <td>{new Date(req_time).toISOString()}</td>
             <td>{name}</td>
             <td>{req_type}</td>
+            <td className="text-truncate" style={{maxWidth: 0}} title={reply}>{reply}</td>
             <td>{reason}</td>
             <td className="text-right">{resp_time} ms</td>
-            <td>{responded === true ? "Yes" : responded === false ? "No" : ""}</td>
         </tr>);
     });
 }

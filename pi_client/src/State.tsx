@@ -137,7 +137,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         }
         case "NEW_HEALTH": {
             const health = state.health;
-            if (health == null || health.length != 3) { return state; }
+            if (health == null || health.length !== 3) { return state; }
             const { time, cpu_avg, memory, cpu_temp } = action.newHealth;
             if (cpu_avg != null) {
                 health[0].data.push([time, cpu_avg]);
