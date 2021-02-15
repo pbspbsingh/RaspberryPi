@@ -1,0 +1,9 @@
+[package]
+name = "dht22"
+version = "0.1.0"
+authors = ["Prashant Bhushan Singh <prashant.bhushansingh@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+gpio-cdev = "0"
+thiserror = "1"
