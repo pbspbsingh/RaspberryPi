@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Instant;
 
 use regex::{Regex, RegexSet};
@@ -17,7 +18,7 @@ use crate::{PiConfig, Timer, PI_CONFIG};
 const AN_HOUR: Duration = Duration::from_secs(60 * 60);
 const BL_NAME: &str = "BlockList Match";
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 enum Filter {
     Pattern(RegexSet),
     DomainMatch(HashSet<Domain>),
@@ -25,7 +26,7 @@ enum Filter {
 
 #[derive(Debug)]
 pub struct Filters {
-    filters: Vec<(String, Filter)>,
+    filters: Vec<(String, Arc<Filter>)>,
 }
 
 impl Filters {
@@ -39,8 +40,8 @@ impl Filters {
             Some(d) => d,
         };
         let domain_name = domain.name();
-        for filter in &self.filters {
-            match filter {
+        for (name, filter) in &self.filters {
+            match (name, filter.as_ref()) {
                 (name, Filter::Pattern(regex_set)) => {
                     if regex_set.is_match(&domain_name) {
                         return Some(name);
@@ -114,13 +115,13 @@ pub async fn load_block() -> anyhow::Result<()> {
         let read_lock = BLOCK.get().unwrap().read().await;
         if let Some((_, f)) = read_lock.filters.iter().find(|f| f.0 == BL_NAME) {
             log::info!("Block list hasn't been updated lately, no need to read from disk");
-            bl_filter = Some(f.clone());
+            bl_filter = Some(Arc::clone(f));
         }
     }
     if bl_filter.is_none() {
         if let Ok(domains) = load_block_list(block_file).await {
             let domains = sort_domains(domains);
-            bl_filter = Some(Filter::DomainMatch(domains));
+            bl_filter = Some(Arc::new(Filter::DomainMatch(domains)));
         } else {
             log::warn!("Failed to read block_list file");
         }
@@ -150,8 +151,14 @@ async fn load_db_filters(db_filters: Vec<DbFilter>) -> anyhow::Result<Filters> {
     );
     Ok(Filters {
         filters: vec![
-            (String::from("Regex Match"), Filter::Pattern(regex_set)),
-            (String::from("Domain Match"), Filter::DomainMatch(domains)),
+            (
+                String::from("Regex Match"),
+                Arc::new(Filter::Pattern(regex_set)),
+            ),
+            (
+                String::from("Domain Match"),
+                Arc::new(Filter::DomainMatch(domains)),
+            ),
         ],
     })
 }
