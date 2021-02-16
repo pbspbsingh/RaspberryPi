@@ -62,7 +62,7 @@ export default function Health(): JSX.Element {
     );
 }
 
-const COLORS: string[] = ['#ff49d7', '#66da26', '#6389e0'];
+const COLORS: string[] = ['#ff0000', '#8d4bf3', '#ff49d7', '#6389e0', '#66da26'];
 
 const chartOptions = (name: string, idx: number) => ({
     chart: {
@@ -78,6 +78,6 @@ const chartOptions = (name: string, idx: number) => ({
             format: 'HH:mm MMM, dd'
         }
     },
-    stroke: { curve: idx === 1 ? 'smooth' : 'straight', width: 3 },
+    stroke: { curve: idx === 4 ? 'smooth' : 'straight', width: 3 },
     xaxis: { type: 'datetime' }
 });

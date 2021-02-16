@@ -36,6 +36,8 @@ export type AppAction = {
     type: "NEW_HEALTH",
     newHealth: {
         time: number,
+        temperatur?: number,
+        humidity?: number,
         cpu_avg?: number,
         cpu_temp?: number,
         memory?: number,
@@ -137,16 +139,22 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         }
         case "NEW_HEALTH": {
             const health = state.health;
-            if (health == null || health.length !== 3) { return state; }
-            const { time, cpu_avg, memory, cpu_temp } = action.newHealth;
-            if (cpu_avg != null) {
-                health[0].data.push([time, cpu_avg]);
+            if (health == null || health.length !== 5) { return state; }
+            const { time, temperatur, humidity, cpu_avg, memory, cpu_temp } = action.newHealth;
+            if (temperatur != null) {
+                health[0].data.push([time, temperatur]);
             }
-            if (memory != null) {
-                health[1].data.push([time, memory]);
+            if (humidity != null) {
+                health[1].data.push([time, humidity]);
+            }
+            if (cpu_avg != null) {
+                health[2].data.push([time, cpu_avg]);
             }
             if (cpu_temp != null) {
-                health[2].data.push([time, cpu_temp]);
+                health[3].data.push([time, cpu_temp]);
+            }
+            if (memory != null) {
+                health[4].data.push([time, memory]);
             }
             return { ...state, health };
         }

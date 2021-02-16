@@ -34,6 +34,7 @@ linked-hash-map = { version = "0", features = ["serde_impl"] }
 regex = "1"
 zip = "0"
 systemstat = { git = "https://github.com/myfreeweb/systemstat" }
+dht22 = { path = "../dht22" }
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 jemallocator = "0"

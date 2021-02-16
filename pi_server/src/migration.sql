@@ -26,7 +26,8 @@ create table if not exists sys_info (
     cpu_avg REAL,
     cpu_temp REAL,
     memory REAL,
-    extras JSON NOT NULL
+    temperature REAL,
+    humidity REAL
 );
 
 create table if not exists block_list (

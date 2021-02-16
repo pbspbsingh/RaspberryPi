@@ -28,6 +28,7 @@ pub struct PiConfig {
     pub forward_server: String,
     pub log_config: String,
     pub block_list: String,
+    pub dht22_pin: Option<u32>,
 }
 
 impl PiConfig {
@@ -41,6 +42,7 @@ impl PiConfig {
             forward_server: "127.0.0.1:5053".into(),
             log_config: "log4rs.yml".into(),
             block_list: "block_list.txt".into(),
+            dht22_pin: None,
         }
     }
 
