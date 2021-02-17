@@ -9,6 +9,7 @@ use tokio::fs;
 pub use timer::Timer;
 
 pub mod blocker;
+pub mod cloudflared;
 pub mod db;
 pub mod dns;
 pub mod http_client;
@@ -25,7 +26,8 @@ pub struct PiConfig {
     pub db_pool: u32,
     pub dns_port: u32,
     pub web_port: u32,
-    pub forward_server: String,
+    pub cloudflared_path: String,
+    pub cloudflared_port: u32,
     pub log_config: String,
     pub block_list: String,
     pub dht22_pin: Option<u32>,
@@ -39,7 +41,8 @@ impl PiConfig {
             db_pool: 1,
             dns_port: 53,
             web_port: 8080,
-            forward_server: "127.0.0.1:5053".into(),
+            cloudflared_path: "cloudflared".into(),
+            cloudflared_port: 5053,
             log_config: "log4rs.yml".into(),
             block_list: "block_list.txt".into(),
             dht22_pin: None,

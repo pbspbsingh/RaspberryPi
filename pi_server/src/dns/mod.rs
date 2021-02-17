@@ -31,18 +31,23 @@ static BLOCK: OnceCell<RwLock<Filters>> = OnceCell::new();
 
 pub async fn start_dns_server() -> anyhow::Result<()> {
     let PiConfig {
-        forward_server,
+        cloudflared_port,
         dns_port,
         ..
     } = PI_CONFIG.get().unwrap();
-    log::info!("Forwarding dns requests to {}", forward_server);
-    let connection = UdpClientStream::<UdpSocket>::new(forward_server.parse()?);
+    log::info!(
+        "Forwarding dns requests to dns://127.0.0.1:{}",
+        cloudflared_port
+    );
+
+    let connection =
+        UdpClientStream::<UdpSocket>::new(format!("127.0.0.1:{}", cloudflared_port).parse()?);
     let (client, req_sender) = AsyncClient::connect(connection).await?;
     let _ = tokio::spawn(req_sender);
 
     tokio::try_join!(
         register_udp(client.clone(), *dns_port),
-        register_tcp(client, *dns_port)
+        // register_tcp(client, *dns_port)
     )?;
     Ok(())
 }
@@ -68,6 +73,7 @@ async fn register_udp(client: AsyncClient, port: u32) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 async fn register_tcp(client: AsyncClient, port: u32) -> anyhow::Result<()> {
     log::debug!("Listening for TCP requests at port {}", port);
     let tcp = TcpListener::bind(format!("0.0.0.0:{}", port)).await?;

@@ -2,6 +2,7 @@
 use jemallocator::Jemalloc;
 
 use pi_server::blocker::refresh_block_list;
+use pi_server::cloudflared::init_cloudflare;
 use pi_server::db::init_db;
 use pi_server::dns::{start_dns_server, update_filters};
 use pi_server::sysinfo::load_sys_info;
@@ -19,7 +20,10 @@ async fn main() -> anyhow::Result<()> {
     init_logger().await?;
     init_db().await?;
 
+    let cloudflared = init_cloudflare().await?;
+
     let run = tokio::try_join!(
+        cloudflared.start_daemon(),
         start_dns_server(),
         start_web_server(),
         load_sys_info(),
@@ -73,10 +77,4 @@ loggers:
     level: debug
 
   # Add other crates log config below
-  trust_dns_proto:
-    level: info
-  trust_dns_server:
-    level: info
-  trust_dns_resolver:
-    level: info
 "##;
