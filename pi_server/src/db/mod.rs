@@ -60,7 +60,7 @@ async fn create_db(db_path: &str) -> anyhow::Result<()> {
 
 async fn clean_old_entries() {
     async fn delete() -> anyhow::Result<()> {
-        let overflow = Local::now().naive_local() - chrono::Duration::days(14);
+        let overflow = Local::now().naive_local() - chrono::Duration::days(30);
         let count = sqlx::query!("delete from dns_requests where req_time < ?", overflow)
             .execute(POOL.get().unwrap())
             .await?

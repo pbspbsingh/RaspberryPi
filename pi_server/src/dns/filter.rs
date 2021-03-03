@@ -120,7 +120,7 @@ pub async fn load_block() -> anyhow::Result<()> {
     }
     if bl_filter.is_none() {
         if let Ok(domains) = load_block_list(block_file).await {
-            let domains = sort_domains(domains);
+            let domains = tokio::task::spawn_blocking(|| sort_domains(domains)).await?;
             bl_filter = Some(Arc::new(Filter::DomainMatch(domains)));
         } else {
             log::warn!("Failed to read block_list file");

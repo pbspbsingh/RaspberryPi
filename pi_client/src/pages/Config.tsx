@@ -1,12 +1,12 @@
 import React, { useEffect, useReducer } from 'react';
 import { Toast as Toaster } from 'bootstrap';
-import { Loader } from '../Icons';
+import { Loader, Trash, Undo } from '../Icons';
 
 type ConfigState = {
     status: "LOADING" | "ERROR" | "DONE",
     approveRules: string[],
     rejectRules: string[],
-    blockList: Array<[string, number]>
+    blockList: Array<[string, number, boolean]>
     updateBtnEnabled: boolean,
     updated?: boolean,
 };
@@ -15,7 +15,10 @@ type Action = {
     type: "LOADED",
     approveRules: string[],
     rejectRules: string[],
-    blockList: Array<[string, number]>
+    blockList: Array<[string, number, boolean]>
+} | {
+    type: "TOGGLE_DELETED",
+    deleteIdx: number,
 } | {
     type: "ERROR",
 } | {
@@ -29,6 +32,13 @@ function reduce(state: ConfigState, action: Action): ConfigState {
     switch (action.type) {
         case "LOADED": {
             return { ...state, ...action, status: "DONE", updateBtnEnabled: true };
+        }
+        case "TOGGLE_DELETED": {
+            const blockList = state.blockList.slice(0, action.deleteIdx);
+            const [url, count, keep] = state.blockList[action.deleteIdx];
+            blockList.push([url, count, !keep]);
+            blockList.push(...state.blockList.slice(action.deleteIdx + 1));
+            return { ...state, blockList };
         }
         case "ERROR": {
             return { ...state, status: "ERROR" };
@@ -77,7 +87,7 @@ export default function Config(): JSX.Element {
             </div>}
             <Toast updated={updated} />
             {status === "DONE" &&
-                <form action="/config" method="post" onSubmit={e => updateConfig(e, dispatch)}>
+                <form action="/config" method="post" onSubmit={e => updateConfig(e, dispatch, state)}>
                     <div className="row">
                         <div className="col col-lg-6 col-md-6 col-sm-12">
                             <div className="card">
@@ -114,7 +124,7 @@ export default function Config(): JSX.Element {
                         </div>
                     </div>
                     <div className="row">
-                        <div className="col col-lg-6 col-md-6 col-sm-12">
+                        <div className="col">
                             <div className="card">
                                 <div className="card-header">
                                     Current Block List
@@ -125,37 +135,42 @@ export default function Config(): JSX.Element {
                                             <tr>
                                                 <th>Source</th>
                                                 <th>Count</th>
+                                                <th className="text-center">Action</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {blockList.map(([source, count], idx) => <tr key={idx}>
+                                            {blockList.map(([source, count, keep], idx) => <tr key={idx} className={!keep ? "strikeout" : ""}>
                                                 <td>{source}</td>
                                                 <td>{count}</td>
+                                                <td className="text-center" style={{ cursor: "pointer" }}
+                                                    onClick={() => dispatch({ type: "TOGGLE_DELETED", deleteIdx: idx })}>
+                                                    {keep ? <Trash /> : <Undo />}
+                                                </td>
                                             </tr>)}
                                         </tbody>
                                     </table>
                                 </div>
                             </div>
                         </div>
-                        <div className="col col-lg-6 col-md-6 col-sm-12">
+                    </div>
+                    <div className="row">
+                        <div className="col">
                             <div className="card">
                                 <div className="card-header">
-                                    Update Block List
-                                </div>
+                                    New Entries for Block List
+                                    </div>
                                 <div className="card-body">
                                     <textarea
                                         className="form-control"
-                                        style={{ marginTop: "25px", lineHeight: 2.07 }}
-                                        name="updatedBlockList"
-                                        defaultValue={blockList.map(([source]) => source).join("\n")}
-                                        rows={blockList.length + 2} />
+                                        name="newBlockListEntries"
+                                        rows={5} />
                                 </div>
                             </div>
                         </div>
-                        <div className="row">
-                            <div className="col d-flex flex-column justify-content-center">
-                                <input type="submit" value="Update" disabled={!state.updateBtnEnabled} />
-                            </div>
+                    </div>
+                    <div className="row">
+                        <div className="col d-flex flex-column justify-content-center">
+                            <input type="submit" value="Update" disabled={!state.updateBtnEnabled} />
                         </div>
                     </div>
                 </form>
@@ -191,7 +206,7 @@ async function loadConfig(dispatch: React.Dispatch<Action>) {
             type: "LOADED",
             approveRules: response.approve_rules,
             rejectRules: response.reject_rules,
-            blockList: response.block_list,
+            blockList: response.block_list.map(([url, count]: [string, number]) => [url, count, true]),
         });
     } catch (e) {
         console.warn("Fetching config failed", e);
@@ -199,18 +214,23 @@ async function loadConfig(dispatch: React.Dispatch<Action>) {
     }
 }
 
-async function updateConfig(e: React.FormEvent, dispatch: React.Dispatch<Action>) {
+async function updateConfig(e: React.FormEvent, dispatch: React.Dispatch<Action>, state: ConfigState) {
     e.preventDefault();
 
     updateToast?.hide();
     dispatch({ type: "PROGRESS" });
 
-    const formData = new FormData(e.target as HTMLFormElement)
+    const param = new URLSearchParams();
+    const approveRules = (document.forms[0].querySelector("textarea[name=approveRules]") as HTMLTextAreaElement).value;
+    const rejectRules = (document.forms[0].querySelector("textarea[name=rejectRules]") as HTMLTextAreaElement).value;
+    const newBlockListEntries = (document.forms[0].querySelector("textarea[name=newBlockListEntries]") as HTMLTextAreaElement).value;
+    const keptBLockList = state.blockList.filter(item => item[2]).map(item => item[0]).join("\n");
+
+    param.append("approveRules", approveRules);
+    param.append("rejectRules", rejectRules);
+    param.append("updatedBlockList", [keptBLockList, newBlockListEntries].join("\n"));
     try {
-        const request = await fetch('/config', {
-            method: 'post',
-            body: new URLSearchParams([...formData as any])
-        });
+        const request = await fetch('/config', { method: 'post', body: param });
         if (request.status === 200) {
             dispatch({ type: "UPDATED", updated: true });
         } else {
