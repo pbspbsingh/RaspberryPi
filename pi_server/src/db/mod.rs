@@ -1,12 +1,12 @@
 use std::path::Path;
+use std::time::Duration;
 
 use chrono::Local;
 use once_cell::sync::OnceCell;
 use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::{Executor, SqlitePool};
-use tokio::time::Duration;
 
-use crate::{PiConfig, PI_CONFIG};
+use crate::{next_maintainence, PiConfig, PI_CONFIG};
 
 pub mod block_list;
 pub mod dns_requests;
@@ -61,22 +61,29 @@ async fn create_db(db_path: &str) -> anyhow::Result<()> {
 async fn clean_old_entries() {
     async fn delete() -> anyhow::Result<()> {
         let overflow = Local::now().naive_local() - chrono::Duration::days(30);
+        log::info!("Will try to entries older than {:?}", overflow);
         let count = sqlx::query!("delete from dns_requests where req_time < ?", overflow)
             .execute(POOL.get().unwrap())
             .await?
             .rows_affected();
-        log::warn!("Deleted {} entries from dns_requests table", count);
+        if count > 0 {
+            log::warn!("Deleted {} entries from dns_requests table", count);
+        }
 
         let count = sqlx::query!("delete from sys_info where s_time < ?", overflow)
             .execute(POOL.get().unwrap())
             .await?
             .rows_affected();
-        log::warn!("Deleted {} entries from sys_info table", count);
+        if count > 0 {
+            log::warn!("Deleted {} entries from sys_info table", count);
+        }
 
         Ok(())
     }
     loop {
+        let sleep_duration = next_maintainence() - Local::now().naive_local();
+        log::info!("Waiting for {} befor cleaning up database", sleep_duration);
+        tokio::time::sleep(sleep_duration.to_std().unwrap()).await;
         delete().await.ok();
-        tokio::time::sleep(Duration::from_secs(24 * 60 * 60)).await;
     }
 }

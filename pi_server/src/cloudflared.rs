@@ -1,11 +1,11 @@
 use std::process::Stdio;
 use std::time::Duration;
 
-use chrono::{Datelike, Local, NaiveDate};
+use chrono::Local;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 
-use crate::{PiConfig, PI_CONFIG};
+use crate::{next_maintainence, PiConfig, PI_CONFIG};
 
 pub async fn init_cloudflare<'a>() -> anyhow::Result<Cloudflared<'a>> {
     let PiConfig {
@@ -57,9 +57,7 @@ pub struct Cloudflared<'a> {
 impl<'a> Cloudflared<'a> {
     pub async fn start_daemon(&self) -> anyhow::Result<()> {
         loop {
-            let rt = Local::now().naive_local();
-            let rt = NaiveDate::from_ymd(rt.year(), rt.month(), rt.day()).and_hms(2, 0, 0);
-            let rt = rt + chrono::Duration::days(1);
+            let rt = next_maintainence();
             log::info!("Will restart the daemon at {}", rt);
 
             self.update().await?;

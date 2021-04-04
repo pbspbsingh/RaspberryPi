@@ -76,11 +76,11 @@ fn read_events(line: Line) -> Result<Vec<Event>, DHT22Error> {
             prev_state = curr_state;
         }
     }
-    println!(
+    /*println!(
         "Events count: {} in {}",
         events.len(),
         start.elapsed().as_millis()
-    );
+    );*/
     Ok(events)
 }
 
@@ -97,7 +97,7 @@ fn process_events(events: &[Event]) -> Result<Reading, DHT22Error> {
         })
         .map(|elapsed| if elapsed.as_micros() > 35 { HIGH } else { LOW })
         .collect::<Vec<_>>();
-    println!("Data points {}", data_points.len());
+    // println!("Data points {}", data_points.len());
     let mut err = DHT22Error::InsufficientReading(data_points.len());
     for data in data_points.windows(BITS_NEEDED) {
         err = match Reading::from_binary_slice(data) {

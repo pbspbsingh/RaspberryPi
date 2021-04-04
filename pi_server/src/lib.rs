@@ -1,6 +1,7 @@
 use std::env;
 use std::path::Path;
 
+use chrono::{Datelike, Duration, Local, NaiveDate, NaiveDateTime};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -66,4 +67,10 @@ impl PiConfig {
             .set(config)
             .map_err(|_| anyhow::anyhow!("Failed to read PiConfig"))
     }
+}
+
+pub fn next_maintainence() -> NaiveDateTime {
+    let now = Local::now().naive_local();
+    let next_slot = NaiveDate::from_ymd(now.year(), now.month(), now.day()).and_hms(2, 0, 0);
+    next_slot + Duration::days(1)
 }

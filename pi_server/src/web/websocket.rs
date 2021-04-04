@@ -50,10 +50,10 @@ pub async fn ws_sender() -> anyhow::Result<()> {
             }
             WsMessage::Send(id, msg) => {
                 let start = Instant::now();
-                log::debug!("Sending text message of size {} to {}", msg.len(), id);
+                log::trace!("Sending text message of size {} to {}", msg.len(), id);
                 if let Some(sink) = store.get_mut(&id) {
                     match timeout(WS_TIMEOUT, sink.send(Message::text(msg))).await {
-                        Ok(_) => log::debug!("Sent ws message in {}", start.t()),
+                        Ok(_) => log::trace!("Sent ws message in {}", start.t()),
                         Err(e) => {
                             log::warn!("Failed to send ws message to {}: {}", id, e);
                             send_ws_msg(WsMessage::Drop(id));
