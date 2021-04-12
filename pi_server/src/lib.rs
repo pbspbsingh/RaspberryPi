@@ -4,7 +4,6 @@ use std::path::Path;
 use chrono::{Datelike, Duration, Local, NaiveDate, NaiveDateTime};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
-use serde_json;
 use tokio::fs;
 
 pub use timer::Timer;

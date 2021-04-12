@@ -57,9 +57,9 @@ impl Domain {
         let name = name.as_ref().trim();
         if name.is_empty()
             || name
-                .split('.')
-                .map(|part| part.parse::<u32>())
-                .any(|res| res.is_ok())
+            .split('.')
+            .map(|part| part.parse::<u32>())
+            .any(|res| res.is_ok())
         {
             log::trace!("Invalid domain name: {}", name);
             return None;
@@ -84,7 +84,7 @@ impl Domain {
         self.labels().rev().collect::<Vec<_>>().join(".")
     }
 
-    pub fn labels(&self) -> impl DoubleEndedIterator<Item = &str> {
+    pub fn labels(&self) -> impl DoubleEndedIterator<Item=&str> {
         self.labels.split('.')
     }
 
@@ -153,9 +153,12 @@ mod test {
     use std::path::Path;
     use std::time::Instant;
 
+    use tokio::sync::Mutex;
+
     use crate::blocker::load_block_list;
     use crate::dns::domain::Domain;
     use crate::Timer;
+    use std::net::Ipv6Addr;
 
     #[test]
     fn test1() {
@@ -195,6 +198,7 @@ mod test {
 
     #[tokio::test]
     async fn test2() -> anyhow::Result<()> {
+        crate::blocker::UPDATE_LOCK.set(Mutex::new(())).ok();
         let file = "block_list.txt";
         if !Path::new(file).exists() {
             return Ok(());
@@ -228,5 +232,11 @@ mod test {
         println!("{:?}", doms);
         dbg!(doms[1].cmp(&doms[2]));
         dbg!(doms[2].cmp(&doms[1]));
+    }
+
+    #[test]
+    fn test4() {
+        let ip: Ipv6Addr = "::".parse().unwrap();
+        println!("{:?}", ip);
     }
 }

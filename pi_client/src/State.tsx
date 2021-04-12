@@ -2,12 +2,12 @@ import React, { createContext, useReducer } from "react";
 
 export const DATE_RANGE = {
     "1": "1 Day",
-    "3": "3 Days",
     "7": "7 Days",
     "14": "14 Days",
+    "30": "30 Days",
 }
 
-export const QUERY_SIZE = [100, 200, 300, 400, 500];
+export const QUERY_SIZE = [100, 500, 1000, 2000];
 
 export type AppAction = {
     type: "SET_LOADING"

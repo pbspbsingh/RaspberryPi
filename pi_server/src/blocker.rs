@@ -14,7 +14,7 @@ use once_cell::sync::OnceCell;
 use tokio::sync::Mutex;
 
 const WEEK: Duration = Duration::from_secs(7 * 24 * 60 * 60);
-static UPDATE_LOCK: OnceCell<Mutex<()>> = OnceCell::new();
+pub(crate) static UPDATE_LOCK: OnceCell<Mutex<()>> = OnceCell::new();
 
 pub async fn refresh_block_list() -> anyhow::Result<()> {
     UPDATE_LOCK.set(Mutex::new(())).ok();
@@ -34,7 +34,7 @@ pub async fn load_block_list(block_file: impl AsRef<Path>) -> anyhow::Result<Vec
     let mut reader = BufReader::new(File::open(block_file).await?);
     loop {
         buff.clear();
-        if reader.read_line(&mut buff).await? <= 0 {
+        if reader.read_line(&mut buff).await? == 0 {
             break;
         }
 
@@ -125,10 +125,10 @@ async fn fetch_target(client: &Client, target: &str) -> anyhow::Result<Vec<Strin
     let mut domains = Vec::new();
     for line in response.text().await?.split('\n') {
         let mut line = line.trim();
-        if line.is_empty() || line.starts_with("#") {
+        if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        if let Some(idx) = line.find("#") {
+        if let Some(idx) = line.find('#') {
             line = line[..idx].trim();
             if line.is_empty() {
                 continue;

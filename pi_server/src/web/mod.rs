@@ -92,7 +92,7 @@ fn map_static_assets(path: FullPath) -> http::Result<Response<Vec<u8>>> {
     let home_urls = HOME_URLS.get_or_init(|| {
         ["/", "/queries", "/filters", "/health"]
             .iter()
-            .map(|s| *s)
+            .copied()
             .collect()
     });
     let lookup_file = if home_urls.contains(path.as_str()) {

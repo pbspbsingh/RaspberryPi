@@ -125,7 +125,7 @@ impl MessageProcessor {
             let mut cause = None;
             if let Some((reason, allowed)) = self.filter(&request).await {
                 if !allowed {
-                    MessageProcessor::update_response(&mut response)
+                    Self::update_response(&mut response)
                 }
                 filtered = Some(allowed);
                 cause = Some(reason);
@@ -206,7 +206,7 @@ impl MessageProcessor {
                     ans.set_rdata(RData::A("0.0.0.0".parse().unwrap()));
                 }
                 RecordType::AAAA => {
-                    ans.set_rdata(RData::AAAA("::/0".parse().unwrap()));
+                    ans.set_rdata(RData::AAAA("::".parse().unwrap()));
                 }
                 _ => {
                     log::warn!(

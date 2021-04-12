@@ -75,9 +75,7 @@ pub fn ws_dns_req(
     let query = Query {
         id: req_id,
         req_time: req_time.timestamp_millis() as u64,
-        req_type: req_type
-            .map(|t| t.to_owned())
-            .unwrap_or_else(|| "Unknown".to_string()),
+        req_type: req_type.unwrap_or_else(|| "Unknown".to_string()),
         name: request
             .map(|s| {
                 if s.ends_with('.') {
@@ -88,7 +86,7 @@ pub fn ws_dns_req(
             })
             .unwrap_or_else(|| "".to_string()),
         responded,
-        reply: Some(response.to_owned()),
+        reply: Some(response),
         filtered,
         reason: reason.map(String::from),
         resp_time: resp_ms as u64,

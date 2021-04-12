@@ -6,7 +6,7 @@ use once_cell::sync::OnceCell;
 use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::{Executor, SqlitePool};
 
-use crate::{next_maintainence, PiConfig, PI_CONFIG};
+use crate::{next_maintainence, PiConfig, PI_CONFIG, timer::Timer};
 
 pub mod block_list;
 pub mod dns_requests;
@@ -80,10 +80,12 @@ async fn clean_old_entries() {
 
         Ok(())
     }
+
     loop {
         let sleep_duration = next_maintainence() - Local::now().naive_local();
-        log::info!("Waiting for {} befor cleaning up database", sleep_duration);
-        tokio::time::sleep(sleep_duration.to_std().unwrap()).await;
+        let sleep_duration = sleep_duration.to_std().unwrap();
+        log::info!("Waiting for {} before cleaning up database", sleep_duration.t());
+        tokio::time::sleep(sleep_duration).await;
         delete().await.ok();
     }
 }
