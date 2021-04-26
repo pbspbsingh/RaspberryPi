@@ -35,6 +35,7 @@ regex = "1"
 zip = "0"
 systemstat = { git = "https://github.com/myfreeweb/systemstat" }
 dht22 = { path = "../dht22" }
+rustlearn = "0"
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 jemallocator = "0"
@@ -43,6 +44,8 @@ jemallocator = "0"
 anyhow = "1"
 zip = "0"
 
+[profile.dev]
+debug = 0
 
 [profile.release]
 lto = true
