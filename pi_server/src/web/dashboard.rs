@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::time::Instant;
 
 use chrono::{Duration, Local};
@@ -9,7 +10,6 @@ use warp::{Rejection, Reply};
 use crate::db::dns_requests::{agg_by_filtered, agg_by_time, agg_by_type, agg_failed_by_time};
 use crate::web::WebError;
 use crate::Timer;
-use std::fmt::Display;
 
 const BASE_SERIES: &[&str] = &["Rejected", "Approved", "Passed"];
 
@@ -52,7 +52,13 @@ pub async fn fetch_dashboard(days: u32) -> Result<impl Reply, Rejection> {
         top_rejected: LinkedHashMap::with_capacity(10),
     };
     let from = Local::now().naive_local() - Duration::days(days as i64);
-    for (time, count, res_time, filtered) in agg_by_time(from).await.map_err(WebError::new)? {
+    let agg_time = tokio::spawn(agg_by_time(from));
+    let failed_agg_time = tokio::spawn(agg_failed_by_time(from));
+    let agg_type = tokio::spawn(agg_by_type(from));
+    let agg_filtered_true = tokio::spawn(agg_by_filtered(from, true));
+    let agg_filtered_false = tokio::spawn(agg_by_filtered(from, false));
+
+    for (time, count, res_time, filtered) in agg_time.await.unwrap().map_err(WebError::new)? {
         let time = time.timestamp_millis() as u64;
         let count = count as u64;
         let res_time = (res_time * 100.).trunc() / 100.;
@@ -80,20 +86,21 @@ pub async fn fetch_dashboard(days: u32) -> Result<impl Reply, Rejection> {
         0,
         TimeSeries {
             name: "Failed".into(),
-            data: agg_failed_by_time(from)
+            data: failed_agg_time
                 .await
+                .unwrap()
                 .map_err(WebError::new)?
                 .into_iter()
                 .map(|(time, count)| (time.timestamp_millis() as u64, count as u64))
                 .collect(),
         },
     );
-    if let Ok(res) = agg_by_type(from).await {
+    if let Ok(res) = agg_type.await.unwrap() {
         res.into_iter().for_each(|(k, v)| {
             info.queries.insert(k, v as u64);
         });
     }
-    if let Ok(res) = agg_by_filtered(from, true).await {
+    if let Ok(res) = agg_filtered_true.await.unwrap() {
         res.into_iter().for_each(|(k, v)| {
             let k = if k.ends_with('.') {
                 k[..k.len() - 1].to_string()
@@ -103,7 +110,7 @@ pub async fn fetch_dashboard(days: u32) -> Result<impl Reply, Rejection> {
             info.top_approved.insert(k, v as u64);
         });
     }
-    if let Ok(res) = agg_by_filtered(from, false).await {
+    if let Ok(res) = agg_filtered_false.await.unwrap() {
         res.into_iter().for_each(|(k, v)| {
             let k = if k.ends_with('.') {
                 k[..k.len() - 1].to_string()
