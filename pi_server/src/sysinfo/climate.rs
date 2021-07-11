@@ -254,9 +254,11 @@ fn to_seconds(time: NaiveDateTime) -> f32 {
 
 #[cfg(test)]
 mod test {
-    use crate::sysinfo::climate::LAST_READ_TEMP;
-    use once_cell::sync::OnceCell;
     use std::sync::atomic::Ordering;
+
+    use once_cell::sync::OnceCell;
+
+    use crate::sysinfo::climate::LAST_READ_TEMP;
 
     #[test]
     fn test_atomic() {
@@ -271,7 +273,7 @@ mod test {
 
     #[test]
     fn test_cell() {
-        for i in 0..10 {
+        for i in (0..10).rev() {
             dbg!(CELL.get_or_init(|| i));
         }
     }

@@ -57,9 +57,9 @@ impl Domain {
         let name = name.as_ref().trim();
         if name.is_empty()
             || name
-            .split('.')
-            .map(|part| part.parse::<u32>())
-            .any(|res| res.is_ok())
+                .split('.')
+                .map(|part| part.parse::<u32>())
+                .any(|res| res.is_ok())
         {
             log::trace!("Invalid domain name: {}", name);
             return None;
@@ -84,12 +84,16 @@ impl Domain {
         self.labels().rev().collect::<Vec<_>>().join(".")
     }
 
-    pub fn labels(&self) -> impl DoubleEndedIterator<Item=&str> {
+    pub fn labels(&self) -> impl DoubleEndedIterator<Item = &str> {
         self.labels.split('.')
     }
 
     pub fn len(&self) -> usize {
         self.labels().count()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     pub fn subdomain_of(&self, other: &Self) -> bool {
@@ -150,6 +154,7 @@ impl Display for Domain {
 
 #[cfg(test)]
 mod test {
+    use std::net::Ipv6Addr;
     use std::path::Path;
     use std::time::Instant;
 
@@ -158,7 +163,6 @@ mod test {
     use crate::blocker::load_block_list;
     use crate::dns::domain::Domain;
     use crate::Timer;
-    use std::net::Ipv6Addr;
 
     #[test]
     fn test1() {

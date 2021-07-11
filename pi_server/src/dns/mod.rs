@@ -162,7 +162,7 @@ impl MessageProcessor {
                             q.query_type(),
                             q.query_class()
                         ))
-                        .unwrap_or_else(|| Default::default()),
+                        .unwrap_or_else(Default::default),
                     msg.edns().is_some()
                 );
                 Some(msg)

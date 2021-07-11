@@ -40,7 +40,7 @@ pub async fn save(
         temperature,
         humidity
     )
-    .execute(POOL.get().unwrap())
-    .await?
-    .last_insert_rowid())
+        .execute(POOL.get().unwrap())
+        .await?
+        .last_insert_rowid())
 }

@@ -1,17 +1,17 @@
 use std::path::Path;
 use std::time::Instant;
 
+use once_cell::sync::OnceCell;
 use reqwest::Client;
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
+use tokio::sync::Mutex;
 use tokio::time::{self, Duration};
 
 use crate::db::block_list::{db_block_list, update_block_list};
 use crate::dns::domain::Domain;
 use crate::dns::filter::load_block;
 use crate::{http_client, PiConfig, Timer, PI_CONFIG};
-use once_cell::sync::OnceCell;
-use tokio::sync::Mutex;
 
 const WEEK: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 pub(crate) static UPDATE_LOCK: OnceCell<Mutex<()>> = OnceCell::new();

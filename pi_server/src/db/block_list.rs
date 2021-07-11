@@ -1,8 +1,9 @@
+use std::time::Instant;
+
 use chrono::{Local, NaiveDateTime};
 
 use crate::db::POOL;
 use crate::Timer;
-use std::time::Instant;
 
 pub struct BlockListItem {
     pub b_id: i64,

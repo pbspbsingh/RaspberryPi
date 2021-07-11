@@ -69,7 +69,7 @@ pub async fn save_config(form: HashMap<String, String>) -> Result<impl Reply, Re
             rules
                 .split('\n')
                 .map(str::trim)
-                .filter(|x| x.len() > 0)
+                .filter(|x| !x.is_empty())
                 .filter_map(|r| extract_filter(r, true)),
         );
     }
@@ -78,7 +78,7 @@ pub async fn save_config(form: HashMap<String, String>) -> Result<impl Reply, Re
             rules
                 .split('\n')
                 .map(str::trim)
-                .filter(|x| x.len() > 0)
+                .filter(|x| !x.is_empty())
                 .filter_map(|r| extract_filter(r, false)),
         );
     }
@@ -92,7 +92,7 @@ pub async fn save_config(form: HashMap<String, String>) -> Result<impl Reply, Re
         let new_block_list = block_list
             .split('\n')
             .map(str::trim)
-            .filter(|s| s.len() > 0)
+            .filter(|s| !s.is_empty())
             .collect::<HashSet<_>>();
         if old_block_list != new_block_list {
             log::info!(
@@ -164,6 +164,6 @@ mod test {
             Err(e) => {
                 dbg!(e);
             }
-        }
+        };
     }
 }
