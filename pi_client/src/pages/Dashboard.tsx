@@ -5,6 +5,7 @@ import { Loader } from '../Icons';
 import { AppContext, DATE_RANGE } from '../State';
 
 import { loadDashboard } from '../dataFetcher';
+import { ApexOptions } from 'apexcharts';
 
 const REFRESH_TIMEOUT = 1 * 60 * 1000;
 
@@ -145,7 +146,7 @@ export default function Dashboard(): JSX.Element {
     );
 }
 
-const DNS_REQUEST_OPTIONS = {
+const DNS_REQUEST_OPTIONS: ApexOptions = {
     chart: {
         animations: { enabled: false },
         height: 350,
@@ -165,7 +166,7 @@ const DNS_REQUEST_OPTIONS = {
     xaxis: { type: 'datetime' }
 };
 
-const MS_OPTIONS = {
+const MS_OPTIONS: ApexOptions = {
     chart: {
         animations: { enabled: false },
         height: 350,
@@ -183,7 +184,7 @@ const MS_OPTIONS = {
     xaxis: { type: 'datetime' }
 };
 
-const PIE_OPTIONS = {
+const PIE_OPTIONS: ApexOptions = {
     legend: {
         position: 'bottom'
     }

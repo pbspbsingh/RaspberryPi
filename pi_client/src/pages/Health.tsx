@@ -4,6 +4,7 @@ import ReactApexChart from 'react-apexcharts';
 import { Loader } from '../Icons';
 import { AppContext, DATE_RANGE } from '../State';
 import { loadHealth } from '../dataFetcher';
+import { ApexOptions } from 'apexcharts';
 
 export default function Health(): JSX.Element {
     const { state, dispatch } = useContext(AppContext);
@@ -64,7 +65,7 @@ export default function Health(): JSX.Element {
 
 const COLORS: string[] = ['#ff0000', '#8d4bf3', '#ff49d7', '#6389e0', '#66da26'];
 
-const chartOptions = (name: string, idx: number) => ({
+const chartOptions = (name: string, idx: number): ApexOptions => ({
     chart: {
         animations: { enabled: false },
         height: 350,
