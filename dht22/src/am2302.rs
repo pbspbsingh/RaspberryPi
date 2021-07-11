@@ -42,7 +42,7 @@ impl Reading {
 
         let check_sum: u8 = bytes[..4]
             .iter()
-            .fold(0 as u8, |result, &value| result.overflowing_add(value).0);
+            .fold(0u8, |result, &value| result.overflowing_add(value).0);
         if check_sum != bytes[4] {
             return Err(ReadingError::ParityBitMismatch);
         }
@@ -57,17 +57,14 @@ impl Reading {
         let humidity: f32 = raw_humidity as f32 / 10.0;
         let temperature: f32 = raw_temperature as f32 / 10.0;
 
-        if temperature > 81.0 || temperature < -41.0 {
-            return Err(ReadingError::OutOfSpecValue);
+        if (-41.0..81.0).contains(&temperature) && (0.0..99.99).contains(&humidity) {
+            Ok(Reading {
+                temperature,
+                humidity,
+            })
+        } else {
+            Err(ReadingError::OutOfSpecValue)
         }
-        if humidity < 0.0 || humidity > 99.9 {
-            return Err(ReadingError::OutOfSpecValue);
-        }
-
-        Ok(Reading {
-            temperature,
-            humidity,
-        })
     }
 
     pub fn temperature(&self) -> f32 {
