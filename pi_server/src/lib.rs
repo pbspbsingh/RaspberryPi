@@ -68,7 +68,7 @@ impl PiConfig {
     }
 }
 
-pub fn next_maintainence() -> NaiveDateTime {
+pub fn next_maintenance() -> NaiveDateTime {
     let now = Local::now().naive_local();
     let next_slot = NaiveDate::from_ymd(now.year(), now.month(), now.day()).and_hms(2, 0, 0);
     next_slot + Duration::days(1)

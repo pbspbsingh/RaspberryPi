@@ -82,9 +82,10 @@ pub async fn start_web_server() -> anyhow::Result<()> {
         .or(health)
         .or(websocket)
         .or(assets);
-    Ok(warp::serve(filters.with(compression::gzip()))
+    warp::serve(filters.with(compression::gzip()))
         .run(([0, 0, 0, 0], *web_port as u16))
-        .await)
+        .await;
+    Ok(())
 }
 
 fn map_static_assets(path: FullPath) -> http::Result<Response<Vec<u8>>> {

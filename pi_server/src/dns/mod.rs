@@ -156,12 +156,7 @@ impl MessageProcessor {
                     msg.id(),
                     msg.queries()
                         .first()
-                        .map(|q| format!(
-                            "{} {} {}",
-                            q.name().to_string(),
-                            q.query_type(),
-                            q.query_class()
-                        ))
+                        .map(|q| format!("{} {} {}", q.name(), q.query_type(), q.query_class()))
                         .unwrap_or_else(Default::default),
                     msg.edns().is_some()
                 );
@@ -226,7 +221,7 @@ impl MessageProcessor {
         match self.client.send(request).await {
             Err(e) => {
                 log::error!("[{}] DNS request failed in {}: {}", id, start.t(), e);
-                return None;
+                None
             }
             Ok(mut response) => {
                 response.set_id(id); // For some reason response id is different from request Id

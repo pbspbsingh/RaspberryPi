@@ -31,10 +31,7 @@ impl Reading {
             return Err(ReadingError::WrongBitsCount);
         }
 
-        let bytes: Vec<u8> = data
-            .chunks(8)
-            .map(|chunk| convert(chunk))
-            .collect::<Result<Vec<_>, _>>()?;
+        let bytes: Vec<u8> = data.chunks(8).map(convert).collect::<Result<Vec<_>, _>>()?;
 
         if bytes.len() < 5 {
             return Err(ReadingError::WrongBitsCount);
@@ -49,9 +46,9 @@ impl Reading {
 
         let raw_humidity: u16 = (bytes[0] as u16) * 256 + bytes[1] as u16;
         let raw_temperature: i16 = if bytes[2] >= 128 {
-            bytes[3] as i16 * -1
+            -(bytes[3] as i16)
         } else {
-            (bytes[2] as i16) * 256 + bytes[3] as i16
+            (bytes[2] as i16) * 256 + (bytes[3] as i16)
         };
 
         let humidity: f32 = raw_humidity as f32 / 10.0;

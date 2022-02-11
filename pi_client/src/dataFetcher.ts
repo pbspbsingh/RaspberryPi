@@ -60,7 +60,7 @@ export async function loadDashboard(dispatch: React.Dispatch<AppAction>, days: s
     try {
         const request = await fetch(`/dashboard/${days}`);
         dispatch({ type: "UPDATE_DASHBOARD", days, dashboardData: await request.json() });
-    } catch (e) {
+    } catch (e: any) {
         console.warn(e);
         dispatch({ type: "SET_ERROR", errorMsg: e.message });
     }
@@ -72,7 +72,7 @@ export async function loadQuery(dispatch: React.Dispatch<AppAction>, querySize: 
         const request = await fetch(`/queries/${querySize}`);
         const queries: DnsQuery[] = await request.json();
         dispatch({ type: "UPDATE_QUERIES", querySize, queries });
-    } catch (e) {
+    } catch (e: any) {
         console.warn(e);
         dispatch({ type: "SET_ERROR", errorMsg: e.message });
     }
@@ -84,7 +84,7 @@ export async function loadHealth(dispatch: React.Dispatch<AppAction>, days: stri
         const request = await fetch(`/health/${days}`);
         const health: Array<{ name: string, data: [number, number][] }> = await request.json();
         dispatch({ type: "UPDATE_HEALTH", days, health });
-    } catch (e) {
+    } catch (e: any) {
         console.warn(e);
         dispatch({ type: "SET_ERROR", errorMsg: e.message });
     }

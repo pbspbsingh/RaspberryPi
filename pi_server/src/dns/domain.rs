@@ -32,6 +32,7 @@ pub fn sort_domains<C: FromIterator<Domain>>(mut domains: Vec<Domain>) -> C {
     new_domains.into_iter().collect::<C>()
 }
 
+#[allow(clippy::derive_hash_xor_eq)]
 #[derive(Clone, Debug, Hash)]
 pub struct Domain {
     labels: String,
@@ -47,7 +48,7 @@ impl Domain {
                 .to_lowercase()
                 .iter()
                 .rev()
-                .map(|l| String::from_utf8_lossy(l))
+                .map(String::from_utf8_lossy)
                 .collect::<Vec<_>>()
                 .join("."),
         })
@@ -66,8 +67,7 @@ impl Domain {
         }
         Name::from_utf8(name)
             .ok()
-            .map(|name| Self::from_name(&name))
-            .flatten()
+            .and_then(|name| Self::from_name(&name))
     }
 
     pub fn parent(&self) -> Option<Self> {

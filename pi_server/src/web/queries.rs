@@ -61,6 +61,7 @@ pub async fn fetch_queries(limit: u32) -> Result<impl Reply, Rejection> {
     Ok(json(&queries))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn ws_dns_req(
     req_id: i64,
     req_time: NaiveDateTime,

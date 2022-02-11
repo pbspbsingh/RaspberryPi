@@ -5,7 +5,9 @@ use chrono::Local;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 
-use crate::{next_maintainence, PiConfig, PI_CONFIG};
+use crate::{next_maintenance, PiConfig, PI_CONFIG};
+
+const CF_URL: &str = "https://github.com/cloudflare/cloudflared/releases";
 
 pub async fn init_cloudflare<'a>() -> anyhow::Result<Cloudflared<'a>> {
     let PiConfig {
@@ -26,8 +28,8 @@ pub async fn init_cloudflare<'a>() -> anyhow::Result<Cloudflared<'a>> {
     {
         Err(e) => {
             log::error!("Failed to start cloudflared process: {}", e);
-            log::error!("Download cloudflared from 'https://dl.equinox.io/cloudflare/cloudflared/stable' for your platform");
-            eprintln!("Download cloudflared from 'https://dl.equinox.io/cloudflare/cloudflared/stable' for your platform");
+            log::error!("Download cloudflared from '{}' for your platform", CF_URL);
+            eprintln!("Download cloudflared from '{}' for your platform", CF_URL);
             return Err(e.into());
         }
         Ok(cmd) => cmd,
@@ -57,10 +59,8 @@ pub struct Cloudflared<'a> {
 impl<'a> Cloudflared<'a> {
     pub async fn start_daemon(&self) -> anyhow::Result<()> {
         loop {
-            let rt = next_maintainence();
+            let rt = next_maintenance();
             log::info!("Will restart the daemon at {}", rt);
-
-            self.update().await?;
 
             log::info!(
                 "Starting cloudflared daemon: `{} proxy-dns --port {}`",
@@ -87,6 +87,9 @@ impl<'a> Cloudflared<'a> {
                     log::info!("stderr: {}", String::from_utf8_lossy(&buff[..len?]));
                 }
                 if Local::now().naive_local() >= rt {
+                    log::info!("Time to try updating cloudflared daemon");
+                    self.update().await?;
+
                     log::info!("It's about time to restart the cloudflared daemon");
                     daemon.kill().await.ok();
                 }

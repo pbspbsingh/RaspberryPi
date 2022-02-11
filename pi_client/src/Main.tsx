@@ -1,5 +1,5 @@
 import React from 'react';
-import { Route, Switch } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { useDataFetcher } from './dataFetcher';
 
 import Footer from './Footer';
@@ -13,20 +13,12 @@ export default function Main(): JSX.Element {
     return (
         <main className="d-flex flex-column">
             <div className="main-content container-fluid flex-grow-1">
-                <Switch>
-                    <Route path="/queries">
-                        <Queries />
-                    </Route>
-                    <Route path="/filters">
-                        <Config />
-                    </Route>
-                    <Route path="/health">
-                        <Health />
-                    </Route>
-                    <Route path="/">
-                        <Dashboard />
-                    </Route>
-                </Switch>
+                <Routes>
+                    <Route path="/queries" element={<Queries />} />
+                    <Route path="/filters" element={<Config />} />
+                    <Route path="/health" element={<Health />} />
+                    <Route path="/" element={<Dashboard />} />
+                </Routes>
             </div>
             <Footer />
         </main>
