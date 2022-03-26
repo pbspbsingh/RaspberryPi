@@ -94,8 +94,8 @@ pub async fn fetch_block_list(check_existing: bool) -> anyhow::Result<()> {
         let len = block_content.len();
         log::info!("{}. Fetched {} domains from {}", i + 1, len, &bl.b_src,);
         for bc in block_content {
-            writer.write(bc.as_bytes()).await?;
-            writer.write(b"\n").await?;
+            writer.write_all(bc.as_bytes()).await?;
+            writer.write_all(b"\n").await?;
         }
         bl.b_count = Some(len as i64);
         total += len;

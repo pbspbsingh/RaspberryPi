@@ -42,7 +42,7 @@ async fn init_logger() -> anyhow::Result<()> {
     if !Path::new(config_file).exists() {
         fs::write(config_file, DEFAULT_LOG_CONFIG).await?;
     }
-    Ok(log4rs::init_file(config_file, Default::default())?)
+    log4rs::init_file(config_file, Default::default())
 }
 
 const DEFAULT_LOG_CONFIG: &str = r##"

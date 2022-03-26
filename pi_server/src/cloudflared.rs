@@ -4,10 +4,31 @@ use std::time::Duration;
 use chrono::Local;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
+use tokio::time;
 
 use crate::{next_maintenance, PiConfig, PI_CONFIG};
 
 const CF_URL: &str = "https://github.com/cloudflare/cloudflared/releases";
+
+pub mod error {
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    pub(super) const ERROR_LIMIT: u32 = 100;
+
+    static COUNT: AtomicU32 = AtomicU32::new(0);
+
+    pub fn inc_count() {
+        COUNT.fetch_add(1, Ordering::AcqRel);
+    }
+
+    pub(super) fn reset_count() {
+        COUNT.store(0, Ordering::Release);
+    }
+
+    pub(super) fn count() -> u32 {
+        COUNT.load(Ordering::Acquire)
+    }
+}
 
 pub async fn init_cloudflare<'a>() -> anyhow::Result<Cloudflared<'a>> {
     let PiConfig {
@@ -59,8 +80,8 @@ pub struct Cloudflared<'a> {
 impl<'a> Cloudflared<'a> {
     pub async fn start_daemon(&self) -> anyhow::Result<()> {
         loop {
-            let rt = next_maintenance();
-            log::info!("Will restart the daemon at {}", rt);
+            let maintenance_time = next_maintenance();
+            log::info!("Will restart the daemon at {}", maintenance_time);
 
             log::info!(
                 "Starting cloudflared daemon: `{} proxy-dns --port {}`",
@@ -78,21 +99,41 @@ impl<'a> Cloudflared<'a> {
             let mut stdout = daemon.stdout.take().unwrap();
             let mut stderr = daemon.stderr.take().unwrap();
             let mut buff = [0u8; 1024];
+            let wait_time = Duration::from_millis(2500);
             loop {
-                let wait_time = Duration::from_secs(5);
-                if let Ok(len) = tokio::time::timeout(wait_time, stdout.read(&mut buff)).await {
-                    log::info!("stdout: {}", String::from_utf8_lossy(&buff[..len?]));
+                if let Ok(len) = time::timeout(wait_time, stdout.read(&mut buff)).await {
+                    let out = String::from_utf8_lossy(&buff[..len?]);
+                    let out = out.trim();
+                    if !out.is_empty() {
+                        log::info!("stdout: {}", out);
+                    }
                 }
-                if let Ok(len) = tokio::time::timeout(wait_time, stderr.read(&mut buff)).await {
-                    log::info!("stderr: {}", String::from_utf8_lossy(&buff[..len?]));
+                if let Ok(len) = time::timeout(wait_time, stderr.read(&mut buff)).await {
+                    let out = String::from_utf8_lossy(&buff[..len?]);
+                    let out = out.trim();
+                    if !out.is_empty() {
+                        log::info!("stderr: {}", out);
+                    }
                 }
-                if Local::now().naive_local() >= rt {
+
+                if Local::now().naive_local() >= maintenance_time {
                     log::info!("Time to try updating cloudflared daemon");
                     self.update().await?;
 
                     log::info!("It's about time to restart the cloudflared daemon");
                     daemon.kill().await.ok();
+                } else if error::count() >= error::ERROR_LIMIT {
+                    log::error!(
+                        "DNS errors ({}) are more than tolerance limit ({}), resetting cloudflare daemon",
+                        error::count(),
+                        error::ERROR_LIMIT,
+                    );
+                    daemon.kill().await.ok();
+                } else if error::count() >= error::ERROR_LIMIT / 10 {
+                    log::warn!("DNS errors count: {} ", error::count(),);
                 }
+                error::reset_count();
+
                 match daemon.try_wait() {
                     Err(e) => {
                         log::warn!("Something went wrong while trying to get the status of child process: {}", e);
