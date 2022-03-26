@@ -1,5 +1,5 @@
 #[cfg(not(target_os = "windows"))]
-use jemallocator::Jemalloc;
+use tikv_jemallocator::Jemalloc;
 
 use pi_server::blocker::refresh_block_list;
 use pi_server::cloudflared::init_cloudflare;
