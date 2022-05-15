@@ -1,24 +1,22 @@
-use std::time::{Duration, Instant};
-
 use chrono::Local;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::time::Instant;
+
 use futures_util::StreamExt;
-use once_cell::sync::OnceCell;
-use tokio::net::{TcpListener, UdpSocket};
+use log::{debug, error, info, warn};
+use once_cell::sync::Lazy;
+use tokio::net::UdpSocket;
 use tokio::sync::RwLock;
 use trust_dns_client::client::AsyncClient;
-use trust_dns_proto::iocompat::AsyncIoTokioAsStd;
-use trust_dns_proto::op::Message;
-use trust_dns_proto::rr::{RData, RecordType};
-use trust_dns_proto::tcp::TcpStream;
+use trust_dns_proto::op::{Message, MessageType};
+use trust_dns_proto::rr::{RData, Record, RecordType};
+use trust_dns_proto::serialize::binary::BinEncodable;
 use trust_dns_proto::udp::{UdpClientStream, UdpStream};
-use trust_dns_proto::xfer::dns_handle::DnsHandle;
-use trust_dns_proto::xfer::{DnsRequest, SerialMessage};
-use trust_dns_proto::BufStreamHandle;
-use trust_dns_server::server::TimeoutStream;
+use trust_dns_proto::xfer::{DnsRequest, DnsResponse, SerialMessage};
+use trust_dns_proto::{BufDnsStreamHandle, DnsHandle, DnsStreamHandle};
 
-use dns_requests::save_request;
-
-use crate::db::dns_requests;
+use crate::cloudflared;
+use crate::db::dns_requests::save_request;
 pub use crate::dns::filter::update_filters;
 use crate::dns::filter::Filters;
 use crate::{PiConfig, Timer, PI_CONFIG};
@@ -26,8 +24,8 @@ use crate::{PiConfig, Timer, PI_CONFIG};
 pub mod domain;
 pub mod filter;
 
-static ALLOW: OnceCell<RwLock<Filters>> = OnceCell::new();
-static BLOCK: OnceCell<RwLock<Filters>> = OnceCell::new();
+static ALLOW: Lazy<RwLock<Filters>> = Lazy::new(|| RwLock::new(Filters::default()));
+static BLOCK: Lazy<RwLock<Filters>> = Lazy::new(|| RwLock::new(Filters::default()));
 
 pub async fn start_dns_server() -> anyhow::Result<()> {
     let PiConfig {
@@ -35,231 +33,186 @@ pub async fn start_dns_server() -> anyhow::Result<()> {
         dns_port,
         ..
     } = PI_CONFIG.get().unwrap();
-    log::info!(
+    info!(
         "Forwarding dns requests to dns://127.0.0.1:{}",
         cloudflared_port
     );
 
-    let connection =
-        UdpClientStream::<UdpSocket>::new(format!("127.0.0.1:{}", cloudflared_port).parse()?);
-    let (client, req_sender) = AsyncClient::connect(connection).await?;
-    let _ = tokio::spawn(req_sender);
+    let connection = UdpClientStream::<UdpSocket>::new(([127, 0, 0, 1], *cloudflared_port).into());
+    let (cloudflare_client, req_sender) = AsyncClient::connect(connection).await?;
 
-    tokio::try_join!(
-        register_udp(client.clone(), *dns_port),
-        // register_tcp(client, *dns_port)
-    )?;
-    Ok(())
-}
+    info!("Starting DNS request sender");
+    tokio::spawn(req_sender);
 
-async fn register_udp(client: AsyncClient, port: u32) -> anyhow::Result<()> {
-    log::debug!("Listening for UDP requests at port {}", port);
-    let socket = UdpSocket::bind(format!("0.0.0.0:{}", port)).await?;
-    let (mut receiver, sender) = UdpStream::with_bound(socket);
-    while let Some(message) = receiver.next().await {
-        match message {
-            Err(e) => log::warn!("Illegal UDP message received {:?}", e),
-            Ok(message) => {
-                log::debug!("UDP request from {:?}", message.addr());
-                let processor = MessageProcessor {
-                    client: client.clone(),
-                    message,
-                    sender: sender.clone(),
-                };
-                tokio::spawn(processor.process());
-            }
-        }
-    }
-    Ok(())
-}
+    let socket = UdpSocket::bind((IpAddr::from([0, 0, 0, 0]), *dns_port)).await?;
+    // The IP address isn't relevant, and ideally goes essentially no where.
+    // the address used is acquired from the inbound queries
+    let server_addr = socket.local_addr().unwrap();
+    let (mut buf_stream, stream_handle) = UdpStream::with_bound(socket, server_addr);
+    info!("Registered UDP client at: {server_addr}");
 
-#[allow(dead_code)]
-async fn register_tcp(client: AsyncClient, port: u32) -> anyhow::Result<()> {
-    log::debug!("Listening for TCP requests at port {}", port);
-    let tcp = TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
-    loop {
-        let (tcp_stream, src_addr) = match tcp.accept().await {
+    while let Some(message) = buf_stream.next().await {
+        let message = match message {
             Err(e) => {
-                log::warn!("Illegal TCP message received {:?}", e);
+                warn!("Invalid message received: {e:?}");
                 continue;
             }
-            Ok((stream, addr)) => (stream, addr),
+            Ok(message) => {
+                debug!("Message received from {}", message.addr());
+                message
+            }
         };
-
-        let client = client.clone();
+        let client = cloudflare_client.clone();
+        let sender = stream_handle.with_remote_addr(message.addr());
         tokio::spawn(async move {
-            let (receiver, sender) =
-                TcpStream::from_stream(AsyncIoTokioAsStd(tcp_stream), src_addr);
-            let mut receiver = TimeoutStream::new(receiver, Duration::from_secs(5));
-            while let Some(message) = receiver.next().await {
-                match message {
-                    Err(e) => log::warn!("Invalid TCP request from {}: {}", src_addr, e),
-                    Ok(message) => {
-                        log::debug!("TCP request from {:?}", message.addr());
-                        let processor = MessageProcessor {
-                            client: client.clone(),
-                            message,
-                            sender: sender.clone(),
-                        };
-                        processor.process().await;
-                    }
-                };
+            let addr = message.addr();
+            if let Err(e) = process_dns_request(message, client, sender).await {
+                warn!("Failed to process message from {addr}: {e}");
             }
         });
     }
+    Ok(())
+}
+
+async fn process_dns_request(
+    message: SerialMessage,
+    async_client: AsyncClient,
+    stream_handle: BufDnsStreamHandle,
+) -> anyhow::Result<()> {
+    let start = Instant::now();
+    let req_time = Local::now().naive_local();
+    let mut processor = MessageProcessor {
+        client: async_client,
+        sender: stream_handle,
+        addr: message.addr(),
+        request: message.to_message()?,
+        responses: Vec::with_capacity(1),
+        allowed: None,
+    };
+    processor.process().await;
+    info!("Time taken to process dns request: {}", start.elapsed().t());
+
+    let (reason, allowed) = processor
+        .allowed
+        .take()
+        .map(|(reason, allowed)| (Some(reason), Some(allowed)))
+        .unwrap_or((None, None));
+    let resp_ms = start.elapsed().as_millis() as i64;
+    let log_res = if processor.responses.is_empty() {
+        cloudflared::error::inc_count();
+        &processor.request
+    } else {
+        &processor.responses[0]
+    };
+    save_request(req_time, log_res, allowed, reason, true, resp_ms).await?;
+    Ok(())
 }
 
 struct MessageProcessor {
     client: AsyncClient,
-    message: SerialMessage,
-    sender: BufStreamHandle,
+    sender: BufDnsStreamHandle,
+    addr: SocketAddr,
+    request: Message,
+    responses: Vec<DnsResponse>,
+    allowed: Option<(String, bool)>,
 }
 
 impl MessageProcessor {
-    async fn process(mut self) -> Option<()> {
-        let start = Instant::now();
-        let req_time = Local::now().naive_local();
-        let request = self.parse_message()?;
-        if let Some(mut response) = self.forward_request(request.clone()).await {
-            let mut filtered = None;
-            let mut cause = None;
-            if let Some((reason, allowed)) = self.filter(&request).await {
-                if !allowed {
-                    Self::update_response(&mut response)
-                }
-                filtered = Some(allowed);
-                cause = Some(reason);
-            }
-            self.respond_back(&response, &start)?;
-            let resp_ms = start.elapsed().as_millis() as i64;
-            save_request(req_time, &response, filtered, cause, true, resp_ms)
-                .await
-                .ok()?;
+    async fn process(&mut self) {
+        self.allowed = self.allow_request().await;
+        if self
+            .allowed
+            .as_ref()
+            .map(|(_, allowed)| *allowed)
+            .unwrap_or(true)
+        {
+            self.forward_to_cloudflare().await;
         } else {
-            let resp_ms = start.elapsed().as_millis() as i64;
-            save_request(req_time, &request, None, None, false, resp_ms)
-                .await
-                .ok()?;
+            self.create_fake_response();
         }
-        Some(())
+        self.reply_back();
+        self.log_msg();
     }
 
-    fn parse_message(&self) -> Option<Message> {
-        match Message::from_vec(self.message.bytes()) {
-            Err(e) => {
-                log::warn!("Failed to parse the message: {}", e);
-                None
-            }
-            Ok(msg) => {
-                log::debug!(
-                    "[{}] Parsed message: {} edns: {}",
-                    msg.id(),
-                    msg.queries()
-                        .first()
-                        .map(|q| format!("{} {} {}", q.name(), q.query_type(), q.query_class()))
-                        .unwrap_or_else(Default::default),
-                    msg.edns().is_some()
-                );
-                Some(msg)
-            }
-        }
-    }
-
-    async fn filter(&self, request: &Message) -> Option<(String, bool)> {
+    async fn allow_request(&self) -> Option<(String, bool)> {
         let mut block_reason = None;
-        for query in request.queries() {
-            if !(query.query_type() == RecordType::A || query.query_type() == RecordType::AAAA) {
-                return None;
-            }
-
+        for query in self.request.queries() {
             let name = query.name();
-            if let Some(allow) = ALLOW.get() {
-                if let Some(allow_name) = { allow.read().await.check(name) } {
-                    log::info!("{} is allowed by {}", name.to_string(), allow_name);
-                    return Some((allow_name.to_string(), true));
-                }
-            } else {
-                log::warn!("ALLOW is not initialized yet!!");
+            if let Some(allow_name) = { ALLOW.read().await.check(name) } {
+                debug!("{name} is allowed by {allow_name}");
+                return Some((allow_name.to_string(), true));
             }
-
-            if let Some(block) = BLOCK.get() {
-                if let Some(block_name) = { block.read().await.check(name) } {
-                    log::warn!("{} is blocked by {}", name.to_string(), block_name);
-                    block_reason = Some(block_name.to_string());
-                }
-            } else {
-                log::warn!("BLOCK is not initialized yet!!");
+            if let Some(block_name) = { BLOCK.read().await.check(name) } {
+                info!("{name} is blocked by {block_name}");
+                block_reason = Some(block_name.to_string());
             }
         }
         block_reason.map(|r| (r, false))
     }
 
-    fn update_response(response: &mut Message) {
-        for ans in response.answers_mut() {
-            match ans.record_type() {
-                RecordType::A => {
-                    ans.set_rdata(RData::A("0.0.0.0".parse().unwrap()));
-                }
-                RecordType::AAAA => {
-                    ans.set_rdata(RData::AAAA("::".parse().unwrap()));
-                }
-                _ => {
-                    log::warn!(
-                        "Unexpected record type in blocked response: {}",
-                        ans.record_type()
-                    );
-                }
-            }
-        }
-    }
-
-    async fn forward_request(&mut self, message: Message) -> Option<Message> {
+    async fn forward_to_cloudflare(&mut self) {
         let start = Instant::now();
-        let request = DnsRequest::new(message, Default::default());
-        let id = request.id();
+        let id = self.request.id();
+        let request = DnsRequest::new(self.request.clone(), Default::default());
+        let mut res_stream = self.client.send(request);
+        while let Some(response) = res_stream.next().await {
+            let mut res = match response {
+                Err(e) => {
+                    error!("Dns forwarding failed: {e}");
+                    continue;
+                }
+                Ok(res) => res,
+            };
+            res.set_id(id); // Somehow the id has changed
+            self.responses.push(res);
+        }
+        info!("Time taken to forward dns request: {}", start.elapsed().t());
+    }
 
-        match self.client.send(request).await {
-            Err(e) => {
-                log::error!("[{}] DNS request failed in {}: {}", id, start.t(), e);
-                None
-            }
-            Ok(mut response) => {
-                response.set_id(id); // For some reason response id is different from request Id
-                log::info!("[{}] DNS request succeeded in {}", id, start.t());
-                for answer in response.answers() {
-                    log::debug!(
-                        "[{}] {} {} {} => {}",
-                        id,
-                        answer.name().to_string(),
-                        answer.record_type(),
-                        answer.dns_class(),
-                        answer.rdata()
-                    );
-                }
-                if let Some(soa) = response.soa() {
-                    log::debug!(
-                        "[{}] SOA: {} {}",
-                        id,
-                        soa.mname().to_string(),
-                        soa.rname().to_string(),
-                    );
-                }
-                Some(response.into())
-            }
+    fn create_fake_response(&mut self) {
+        let mut response = DnsResponse::from(self.request.clone());
+        response.set_message_type(MessageType::Response);
+        response.set_recursion_available(true);
+        response.set_authentic_data(false);
+        for query in self.request.queries() {
+            let mut record = Record::default();
+            record.set_name(query.name().clone());
+            record.set_rr_type(query.query_type());
+            record.set_dns_class(query.query_class());
+            let rdata = match query.query_type() {
+                RecordType::A => Some(RData::A(Ipv4Addr::UNSPECIFIED)),
+                RecordType::AAAA => Some(RData::AAAA(Ipv6Addr::UNSPECIFIED)),
+                _ => None,
+            };
+            record.set_data(rdata);
+            record.set_ttl(0);
+            response.add_answer(record);
+        }
+        self.responses.push(response);
+    }
+
+    fn reply_back(&mut self) {
+        if !self.responses.is_empty() {
+            let payload = self
+                .responses
+                .iter()
+                .filter_map(|res| res.to_bytes().ok())
+                .flatten()
+                .collect::<Vec<_>>();
+            let response = SerialMessage::new(payload, self.addr);
+            match self.sender.send(response) {
+                Ok(_) => debug!("Successfully replied back to {}", self.addr),
+                Err(e) => error!("Failed to send the response back: {e}"),
+            };
+        } else {
+            warn!("Response is empty, can't reply back");
         }
     }
 
-    fn respond_back(&mut self, response: &Message, start: &Instant) -> Option<()> {
-        let id = response.id();
-        let response = SerialMessage::new(response.to_vec().ok()?, self.message.addr());
-        match self.sender.send(response) {
-            Err(e) => {
-                log::error!("[{}] Failed to respond back [{}]: {:?}", id, start.t(), e);
-            }
-            Ok(_) => {
-                log::info!("[{}] Successfully responded back [{}]", id, start.t());
-            }
-        }
-        Some(())
+    fn log_msg(&self) {
+        info!(
+            "*************************** DNS Record ***************************\nRequest: {:?}\nResponse: {:?}\n***************************************************************\n",
+            self.request, self.responses
+        );
     }
 }

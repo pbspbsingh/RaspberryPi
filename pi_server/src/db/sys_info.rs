@@ -3,7 +3,6 @@ use sqlx::types::chrono::NaiveDateTime;
 use crate::db::POOL;
 use crate::web::ws_health_info;
 
-#[derive(Debug, sqlx::FromRow)]
 pub struct SysInfo {
     pub s_id: i64,
     pub s_time: NaiveDateTime,
@@ -15,13 +14,35 @@ pub struct SysInfo {
 }
 
 pub async fn load_sys_info(from: NaiveDateTime) -> anyhow::Result<Vec<SysInfo>> {
-    Ok(sqlx::query_as!(
-        SysInfo,
+    #[derive(Debug, sqlx::FromRow)]
+    struct _SysInfo {
+        pub s_id: i64,
+        pub s_time: NaiveDateTime,
+        pub cpu_avg: Option<f64>,
+        pub cpu_temp: Option<f64>,
+        pub memory: Option<f64>,
+        pub temperature: Option<f64>,
+        pub humidity: Option<f64>,
+    }
+    let results = sqlx::query_as!(
+        _SysInfo,
         "select * from sys_info where s_time>=? order by s_time",
         from
     )
     .fetch_all(POOL.get().unwrap())
-    .await?)
+    .await?
+    .into_iter()
+    .map(|s| SysInfo {
+        s_id: s.s_id,
+        s_time: s.s_time,
+        cpu_avg: s.cpu_avg.map(|f| f as f32),
+        cpu_temp: s.cpu_temp.map(|f| f as f32),
+        memory: s.memory.map(|f| f as f32),
+        temperature: s.temperature.map(|f| f as f32),
+        humidity: s.humidity.map(|f| f as f32),
+    })
+    .collect();
+    Ok(results)
 }
 
 pub async fn save(

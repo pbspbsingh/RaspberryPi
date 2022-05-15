@@ -74,7 +74,7 @@ pub async fn init_cloudflare<'a>() -> anyhow::Result<Cloudflared<'a>> {
 
 pub struct Cloudflared<'a> {
     cmd: &'a str,
-    port: u32,
+    port: u16,
 }
 
 impl<'a> Cloudflared<'a> {

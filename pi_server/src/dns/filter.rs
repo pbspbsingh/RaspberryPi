@@ -4,7 +4,6 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use regex::{Regex, RegexSet};
-use tokio::sync::RwLock;
 use tokio::time;
 use tokio::time::Duration;
 use trust_dns_proto::rr::Name;
@@ -63,13 +62,6 @@ impl Filters {
 }
 
 pub async fn update_filters() -> anyhow::Result<()> {
-    ALLOW
-        .set(RwLock::new(Filters::default()))
-        .map_err(|_| anyhow::anyhow!("Error setting ALLOW"))?;
-    BLOCK
-        .set(RwLock::new(Filters::default()))
-        .map_err(|_| anyhow::anyhow!("Error setting BLOCK"))?;
-
     loop {
         log::debug!("Updating the filters...");
 
@@ -93,7 +85,7 @@ pub async fn update_filters() -> anyhow::Result<()> {
 
 pub async fn load_allow() -> anyhow::Result<()> {
     let filters = load_db_filters(fetch_filters(Some(true)).await?).await?;
-    let mut lock = ALLOW.get().unwrap().write().await;
+    let mut lock = ALLOW.write().await;
     let _ = std::mem::replace(&mut *lock, filters);
     Ok(())
 }
@@ -112,7 +104,7 @@ pub async fn load_block() -> anyhow::Result<()> {
     log::info!("Block list file was modified {} ago", last_updated.t());
     let mut bl_filter = None;
     if last_updated > AN_HOUR {
-        let read_lock = BLOCK.get().unwrap().read().await;
+        let read_lock = BLOCK.read().await;
         if let Some((_, f)) = read_lock.filters.iter().find(|f| f.0 == BL_NAME) {
             log::info!("Block list hasn't been updated lately, no need to read from disk");
             bl_filter = Some(Arc::clone(f));
@@ -130,7 +122,7 @@ pub async fn load_block() -> anyhow::Result<()> {
         filters.filters.push((BL_NAME.into(), bl_filter));
     }
 
-    let mut lock = BLOCK.get().unwrap().write().await;
+    let mut lock = BLOCK.write().await;
     let _ = std::mem::replace(&mut *lock, filters);
     Ok(())
 }

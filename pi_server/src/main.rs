@@ -22,7 +22,7 @@ async fn main() -> anyhow::Result<()> {
 
     let cloudflared = init_cloudflare().await?;
 
-    let run = tokio::try_join!(
+    let _run = tokio::try_join!(
         cloudflared.start_daemon(),
         start_dns_server(),
         start_web_server(),
@@ -31,7 +31,7 @@ async fn main() -> anyhow::Result<()> {
         refresh_block_list(),
         ws_sender(),
     );
-    run.map(|_| ())
+    Ok(())
 }
 
 async fn init_logger() -> anyhow::Result<()> {

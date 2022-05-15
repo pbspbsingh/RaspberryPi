@@ -1,6 +1,6 @@
 [package]
 name = "pi_server"
-version = "0.5.0"
+version = "1.0.0"
 authors = ["Prashant Bhushan Singh <prashant.bhushansingh@gmail.com>"]
 edition = "2021"
 
@@ -15,14 +15,14 @@ serde = "1"
 serde_json = "1"
 serde_yaml = "0"
 
-futures-util = "0.3"
+futures-util = "0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "fs", "time", "process"] }
 
 reqwest = { version = "0", features = ["cookies", "rustls"] }
 
-trust-dns-proto = "0"
-trust-dns-client = "0"
-trust-dns-server = "0"
+trust-dns-proto = { git = "https://github.com/bluejekyll/trust-dns.git" }
+trust-dns-client = { git = "https://github.com/bluejekyll/trust-dns.git" }
+trust-dns-server = { git = "https://github.com/bluejekyll/trust-dns.git" }
 
 chrono = "0"
 sqlx = { git = "https://github.com/launchbadge/sqlx", features = ["runtime-tokio-rustls", "sqlite", "chrono", "all-types"] }
@@ -49,4 +49,5 @@ debug = 0
 
 [profile.release]
 lto = true
+strip = true
 codegen-units = 1
