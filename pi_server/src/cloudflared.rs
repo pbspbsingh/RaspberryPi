@@ -13,7 +13,7 @@ const CF_URL: &str = "https://github.com/cloudflare/cloudflared/releases";
 pub mod error {
     use std::sync::atomic::{AtomicU32, Ordering};
 
-    pub(super) const ERROR_LIMIT: u32 = 100;
+    pub(super) const ERROR_LIMIT: u32 = 12;
 
     static COUNT: AtomicU32 = AtomicU32::new(0);
 
@@ -129,7 +129,7 @@ impl<'a> Cloudflared<'a> {
                         error::ERROR_LIMIT,
                     );
                     daemon.kill().await.ok();
-                } else if error::count() >= error::ERROR_LIMIT / 10 {
+                } else if error::count() > 0 {
                     log::warn!("DNS errors count: {} ", error::count(),);
                 }
                 error::reset_count();

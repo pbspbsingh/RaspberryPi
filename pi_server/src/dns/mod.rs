@@ -1,3 +1,4 @@
+use anyhow::Context;
 use chrono::Local;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::time::Instant;
@@ -44,7 +45,9 @@ pub async fn start_dns_server() -> anyhow::Result<()> {
     info!("Starting DNS request sender");
     tokio::spawn(req_sender);
 
-    let socket = UdpSocket::bind((IpAddr::from([0, 0, 0, 0]), *dns_port)).await?;
+    let socket = UdpSocket::bind((IpAddr::from([0, 0, 0, 0]), *dns_port))
+        .await
+        .with_context(|| format!("Failed to bind udp port: {dns_port}"))?;
     // The IP address isn't relevant, and ideally goes essentially no where.
     // the address used is acquired from the inbound queries
     let server_addr = socket.local_addr().unwrap();
@@ -98,13 +101,14 @@ async fn process_dns_request(
         .map(|(reason, allowed)| (Some(reason), Some(allowed)))
         .unwrap_or((None, None));
     let resp_ms = start.elapsed().as_millis() as i64;
-    let log_res = if processor.responses.is_empty() {
+    let responded = !processor.responses.is_empty();
+    let log_res = if !responded {
         cloudflared::error::inc_count();
         &processor.request
     } else {
         &processor.responses[0]
     };
-    save_request(req_time, log_res, allowed, reason, true, resp_ms).await?;
+    save_request(req_time, log_res, allowed, reason, responded, resp_ms).await?;
     Ok(())
 }
 
@@ -205,7 +209,7 @@ impl MessageProcessor {
                 Err(e) => error!("Failed to send the response back: {e}"),
             };
         } else {
-            warn!("Response is empty, can't reply back");
+            error!("Response is empty, can't reply back");
         }
     }
 

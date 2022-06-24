@@ -2,7 +2,7 @@
 name = "dht22"
 version = "1.0.0"
 authors = ["Prashant Bhushan Singh <prashant.bhushansingh@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 gpio-cdev = "0"

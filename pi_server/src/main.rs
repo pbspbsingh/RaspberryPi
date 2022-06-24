@@ -22,7 +22,7 @@ async fn main() -> anyhow::Result<()> {
 
     let cloudflared = init_cloudflare().await?;
 
-    let _run = tokio::try_join!(
+    if let Err(e) = tokio::try_join!(
         cloudflared.start_daemon(),
         start_dns_server(),
         start_web_server(),
@@ -30,7 +30,10 @@ async fn main() -> anyhow::Result<()> {
         update_filters(),
         refresh_block_list(),
         ws_sender(),
-    );
+    ) {
+        println!("Something went wrong: {e:?}");
+        log::error!("Failed to start the app: {e:?}");
+    }
     Ok(())
 }
 
