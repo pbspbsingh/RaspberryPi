@@ -1,10 +1,9 @@
 use std::path::Path;
-use std::time::Duration;
 
 use chrono::Local;
 use once_cell::sync::OnceCell;
 use sqlx::sqlite::SqlitePoolOptions;
-use sqlx::{Executor, SqlitePool};
+use sqlx::{Connection, Executor, SqliteConnection, SqlitePool};
 
 use crate::{next_maintenance, timer::Timer, PiConfig, PI_CONFIG};
 
@@ -30,7 +29,6 @@ pub async fn init_db() -> anyhow::Result<()> {
 
     let pool = SqlitePoolOptions::new()
         .max_connections(*db_pool)
-        .connect_timeout(Duration::from_secs(15))
         .connect(&format!("sqlite://{}?mode=rw", db_path))
         .await?;
     POOL.set(pool)
@@ -46,13 +44,12 @@ pub async fn init_db() -> anyhow::Result<()> {
 }
 
 async fn create_db(db_path: &str) -> anyhow::Result<()> {
-    let pool = SqlitePoolOptions::new()
-        .connect_timeout(Duration::from_secs(15))
-        .max_connections(1)
-        .connect(&format!("sqlite://{}?mode=rwc", db_path))
+    let mut con = SqliteConnection::connect(&format!("sqlite://{}?mode=rwc", db_path)).await?;
+    let _ = sqlx::query_file!("./schema/create_tables.sql")
+        .execute(&mut con)
         .await?;
-    let _ = sqlx::query_file!("src/migration.sql")
-        .execute(&pool)
+    let _ = sqlx::query(include_str!("../../schema/create_indices.sql"))
+        .execute(&mut con)
         .await?;
     log::info!("Created a new database file '{}'", db_path);
     Ok(())

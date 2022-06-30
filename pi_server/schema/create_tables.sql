@@ -19,7 +19,6 @@ create table if not exists dns_requests (
     responded BOOLEAN NOT NULL,
     resp_ms INTEGER NOT NULL
 );
---create INDEX dns_req_timee_idx on dns_requests(req_time);
 
 create table if not exists sys_info (
     s_id INTEGER PRIMARY KEY NOT NULL,
