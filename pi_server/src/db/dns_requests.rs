@@ -26,10 +26,13 @@ pub struct DnsRequest {
 
 pub async fn fetch_dns_reqs(limit: u32) -> anyhow::Result<Vec<DnsRequest>> {
     let start = Instant::now();
-    let res = sqlx::query_as("select * from dns_requests order by req_time desc limit ?")
-        .bind(limit)
-        .fetch_all(POOL.get().unwrap())
-        .await?;
+    let res = sqlx::query_as!(
+        DnsRequest,
+        "select * from dns_requests order by req_time desc limit ?",
+        limit
+    )
+    .fetch_all(POOL.get().unwrap())
+    .await?;
     log::debug!("Time taken to fetch dns requests: {}", start.t());
     Ok(res)
 }
