@@ -8,3 +8,5 @@ block_list.txt
 *.db*
 .DS_Store
 .eslintcache
+pi_server/config.json
+pi_server/log4rs.yml

@@ -1,3 +1,4 @@
+use axum::extract::ws::{Message, WebSocket};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
@@ -8,14 +9,13 @@ use once_cell::sync::OnceCell;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::time::timeout;
 use tokio::time::Duration;
-use warp::filters::ws::{Message, WebSocket};
 
 use crate::Timer;
 
 static WS_SENDER: OnceCell<UnboundedSender<WsMessage>> = OnceCell::new();
 static WS_ID: AtomicU32 = AtomicU32::new(0);
 
-const WS_TIMEOUT: Duration = Duration::from_secs(5);
+const WS_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Debug)]
 pub enum WsMessage {
@@ -52,7 +52,7 @@ pub async fn ws_sender() -> anyhow::Result<()> {
                 let start = Instant::now();
                 log::trace!("Sending text message of size {} to {}", msg.len(), id);
                 if let Some(sink) = store.get_mut(&id) {
-                    match timeout(WS_TIMEOUT, sink.send(Message::text(msg))).await {
+                    match timeout(WS_TIMEOUT, sink.send(Message::Text(msg))).await {
                         Ok(_) => log::trace!("Sent ws message in {}", start.t()),
                         Err(e) => {
                             log::warn!("Failed to send ws message to {}: {}", id, e);
@@ -66,7 +66,7 @@ pub async fn ws_sender() -> anyhow::Result<()> {
             WsMessage::SendAll(msg) => {
                 store
                     .keys()
-                    .for_each(|id| send_ws_msg(WsMessage::Send(*id, msg.clone())));
+                    .for_each(|&id| send_ws_msg(WsMessage::Send(id, msg.clone())));
             }
         }
     }
@@ -89,7 +89,7 @@ pub async fn handle_ws(ws: WebSocket) {
             }
         };
         log::debug!("Got ws message[{}]: {:?}", id, msg);
-        if msg.is_close() {
+        if matches!(msg, Message::Close(_)) {
             break;
         }
     }

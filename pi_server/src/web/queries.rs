@@ -1,9 +1,10 @@
+use axum::extract::Path;
+use axum::response::IntoResponse;
+use axum::Json;
 use std::collections::HashMap;
 
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
-use warp::reply::json;
-use warp::{Rejection, Reply};
 
 use crate::db::dns_requests::{fetch_dns_reqs, DnsRequest};
 use crate::web::websocket::{send_ws_msg, WsMessage};
@@ -22,8 +23,8 @@ struct Query {
     resp_time: u64,
 }
 
-pub async fn fetch_queries(limit: u32) -> Result<impl Reply, Rejection> {
-    let dns_reqs = fetch_dns_reqs(limit).await.map_err(WebError::new)?;
+pub async fn fetch_queries(Path(limit): Path<u32>) -> Result<impl IntoResponse, WebError> {
+    let dns_reqs = fetch_dns_reqs(limit).await.map_err(anyhow::Error::from)?;
     let queries = dns_reqs
         .into_iter()
         .map(
@@ -58,7 +59,7 @@ pub async fn fetch_queries(limit: u32) -> Result<impl Reply, Rejection> {
             },
         )
         .collect::<Vec<_>>();
-    Ok(json(&queries))
+    Ok(Json(queries))
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -1,7 +1,8 @@
+use axum::extract::Path;
+use axum::response::IntoResponse;
+use axum::Json;
 use chrono::{Duration, Local};
 use serde::{Deserialize, Serialize};
-use warp::reply::json;
-use warp::{Rejection, Reply};
 
 use crate::db::sys_info::load_sys_info;
 use crate::web::websocket::{send_ws_msg, WsMessage};
@@ -13,7 +14,7 @@ pub struct Health {
     data: Vec<(u64, f64)>,
 }
 
-pub async fn fetch_health_info(days: u32) -> Result<impl Reply, Rejection> {
+pub async fn fetch_health_info(Path(days): Path<u32>) -> Result<impl IntoResponse, WebError> {
     let from = Local::now().naive_local() - Duration::days(days as i64);
     let mut temperature = Vec::new();
     let mut humidity = Vec::new();
@@ -21,7 +22,7 @@ pub async fn fetch_health_info(days: u32) -> Result<impl Reply, Rejection> {
     let mut memory = Vec::new();
     let mut cpu_temp = Vec::new();
 
-    for si in load_sys_info(from).await.map_err(WebError::new)? {
+    for si in load_sys_info(from).await.map_err(anyhow::Error::from)? {
         let time = si.s_time.timestamp_millis() as u64;
         if let Some(temp) = si.temperature {
             temperature.push((time, truncate(temp)));
@@ -39,7 +40,7 @@ pub async fn fetch_health_info(days: u32) -> Result<impl Reply, Rejection> {
             cpu_temp.push((time, truncate(ct)));
         }
     }
-    Ok(json(&[
+    Ok(Json([
         Health {
             name: "Temperature ºC",
             data: temperature,
