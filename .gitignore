@@ -3,10 +3,9 @@ build
 .idea
 .vscode
 *.iml
-block_list.txt
 *.log
 *.db*
 .DS_Store
 .eslintcache
-pi_server/config.json
-pi_server/log4rs.yml
+config.json
+log4rs.yml

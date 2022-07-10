@@ -1,13 +1,12 @@
-use anyhow::Context;
-use chrono::Local;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::time::Instant;
 
+use anyhow::Context;
+use chrono::Local;
+use domain::db::block_list::find_blocked_domain;
 use futures_util::StreamExt;
 use log::{debug, error, info, warn};
-use once_cell::sync::Lazy;
 use tokio::net::UdpSocket;
-use tokio::sync::RwLock;
 use trust_dns_client::client::AsyncClient;
 use trust_dns_proto::op::{Message, MessageType};
 use trust_dns_proto::rr::{RData, Record, RecordType};
@@ -18,15 +17,7 @@ use trust_dns_proto::{BufDnsStreamHandle, DnsHandle, DnsStreamHandle};
 
 use crate::cloudflared;
 use crate::db::dns_requests::save_request;
-pub use crate::dns::filter::update_filters;
-use crate::dns::filter::Filters;
 use crate::{PiConfig, Timer, PI_CONFIG};
-
-pub mod domain;
-pub mod filter;
-
-static ALLOW: Lazy<RwLock<Filters>> = Lazy::new(|| RwLock::new(Filters::default()));
-static BLOCK: Lazy<RwLock<Filters>> = Lazy::new(|| RwLock::new(Filters::default()));
 
 pub async fn start_dns_server() -> anyhow::Result<()> {
     let PiConfig {
@@ -108,7 +99,16 @@ async fn process_dns_request(
     } else {
         &processor.responses[0]
     };
-    save_request(req_time, log_res, allowed, reason, responded, resp_ms).await?;
+    save_request(
+        req_time,
+        log_res,
+        allowed,
+        reason,
+        responded,
+        resp_ms,
+        message.addr(),
+    )
+    .await?;
     Ok(())
 }
 
@@ -139,19 +139,23 @@ impl MessageProcessor {
     }
 
     async fn allow_request(&self) -> Option<(String, bool)> {
+        let start = Instant::now();
         let mut block_reason = None;
         for query in self.request.queries() {
-            let name = query.name();
-            if let Some(allow_name) = { ALLOW.read().await.check(name) } {
-                debug!("{name} is allowed by {allow_name}");
-                return Some((allow_name.to_string(), true));
+            let name = query.name().to_lowercase().to_string();
+            if let Some((allow, reason)) = domain::check_filters(&name).await {
+                if allow {
+                    return Some((reason, allow));
+                } else {
+                    block_reason = Some(reason);
+                }
             }
-            if let Some(block_name) = { BLOCK.read().await.check(name) } {
-                info!("{name} is blocked by {block_name}");
-                block_reason = Some(block_name.to_string());
+            if let Some((domain, source)) = find_blocked_domain(name).await.ok().flatten() {
+                block_reason = Some(format!("Blocked domain: {domain} listed in '{source}'"));
             }
         }
-        block_reason.map(|r| (r, false))
+        info!("Time taken to run filters: {}", start.elapsed().t());
+        block_reason.map(|reason| (reason, false))
     }
 
     async fn forward_to_cloudflare(&mut self) {

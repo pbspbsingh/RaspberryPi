@@ -7,9 +7,7 @@ use sqlx::{Connection, Executor, SqliteConnection, SqlitePool};
 
 use crate::{next_maintenance, timer::Timer, PiConfig, PI_CONFIG};
 
-pub mod block_list;
 pub mod dns_requests;
-pub mod filters;
 pub mod sys_info;
 
 static POOL: OnceCell<SqlitePool> = OnceCell::new();
@@ -45,10 +43,7 @@ pub async fn init_db() -> anyhow::Result<()> {
 
 async fn create_db(db_path: &str) -> anyhow::Result<()> {
     let mut con = SqliteConnection::connect(&format!("sqlite://{}?mode=rwc", db_path)).await?;
-    let _ = sqlx::query_file!("./schema/create_tables.sql")
-        .execute(&mut con)
-        .await?;
-    let _ = sqlx::query(include_str!("../../schema/create_indices.sql"))
+    let _ = sqlx::query(include_str!("../../schema/create_tables.sql"))
         .execute(&mut con)
         .await?;
     log::info!("Created a new database file '{}'", db_path);

@@ -1,6 +1,6 @@
 [package]
 name = "pi_server"
-version = "1.1.0"
+version = "2.0.0"
 authors = ["Prashant Bhushan Singh <prashant.bhushansingh@gmail.com>"]
 edition = "2021"
 
@@ -23,14 +23,16 @@ trust-dns-server = { git = "https://github.com/bluejekyll/trust-dns.git" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "fs", "time", "process"] }
 futures-util = "0"
 axum = { version = "0", features = ["ws"] }
-sqlx = { version = "0", features = ["runtime-tokio-rustls", "sqlite", "chrono", "all-types"] }
+sqlx = { version = "0", features = ["runtime-tokio-rustls", "sqlite", "chrono"] }
 reqwest = { version = "0", features = ["cookies", "rustls"] }
 
 http = "0"
 mime_guess = "2"
 linked-hash-map = { version = "0", features = ["serde_impl"] }
+itertools = "0"
 regex = "1"
 zip = "0"
+domain = { path = "../domain" }
 
 systemstat = { git = "https://github.com/myfreeweb/systemstat" }
 dht22 = { path = "../dht22" }
@@ -42,10 +44,3 @@ tikv-jemallocator = "0"
 [build-dependencies]
 anyhow = "1"
 zip = "0"
-
-[profile.dev]
-debug = 0
-
-[profile.release]
-lto = true
-codegen-units = 1

@@ -1,0 +1,10 @@
+[workspace]
+members = ["pi_server", "dht22", "domain"]
+
+[profile.dev]
+debug = 0
+
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1

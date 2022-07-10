@@ -1,1 +1,0 @@
-create INDEX dns_req_time_idx on dns_requests(req_time);

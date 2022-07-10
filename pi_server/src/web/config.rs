@@ -1,127 +1,120 @@
+use std::collections::{HashMap, HashSet};
+
 use axum::response::IntoResponse;
 use axum::{Form, Json};
-use std::collections::{HashMap, HashSet};
-use std::time::Instant;
-
 use chrono::Local;
+use itertools::{Either, Itertools};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use trust_dns_proto::rr::Name;
 
-use crate::db::block_list::{db_block_list, replace_block_list, BlockListItem};
-use crate::db::filters::{fetch_filters, save_filters, DbFilter};
-use crate::dns::domain::Domain;
-use crate::dns::filter;
+use crate::downloader::signal_blocked_domain_refresh;
+use domain::db::block_list::{load_block_list, save_block_list, DbBlockList};
+use domain::db::filters::{load_all_filters, save_filters, DbFilter};
+use domain::reload_filters;
+
 use crate::web::WebError;
-use crate::{blocker, Timer};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Config {
     approve_rules: Vec<String>,
     reject_rules: Vec<String>,
-    block_list: Vec<(String, Option<i64>)>,
+    block_list: Vec<(String, i64)>,
 }
 
 pub async fn fetch_config() -> Result<impl IntoResponse, WebError> {
-    async fn _fetch_config() -> anyhow::Result<impl IntoResponse> {
-        let start = Instant::now();
-        let mut config = Config {
-            approve_rules: vec![],
-            reject_rules: vec![],
-            block_list: vec![],
-        };
-        let filters = fetch_filters(None).await?;
-        let size = filters.len();
-        for DbFilter {
-            mut expr,
-            is_allow,
-            is_regex,
-            enabled,
-            ..
-        } in filters
-        {
-            if is_regex {
-                expr = format!("* {}", expr);
+    let (approve_rules, reject_rules) =
+        load_all_filters().await?.into_iter().partition_map(|dbf| {
+            let mut expr = dbf.expr;
+            if dbf.is_regex {
+                expr = format!("* {expr}");
             }
-            if !enabled {
-                expr = format!("# {}", expr);
+            if !dbf.enabled {
+                expr = format!("# {expr}");
             }
-            if is_allow {
-                config.approve_rules.push(expr);
+            if dbf.is_allow {
+                Either::Left(expr)
             } else {
-                config.reject_rules.push(expr);
+                Either::Right(expr)
             }
-        }
-        config.block_list.extend(
-            db_block_list()
-                .await?
-                .into_iter()
-                .map(|BlockListItem { b_src, b_count, .. }| (b_src, b_count)),
-        );
-        log::debug!("Fetched {} rules in {}", size, start.t());
-        Ok(Json(config))
-    }
-    Ok(_fetch_config().await?)
+        });
+    let block_list = load_block_list()
+        .await?
+        .into_iter()
+        .map(|bl| (bl.src, bl.domain_count))
+        .collect();
+    let config = Config {
+        approve_rules,
+        reject_rules,
+        block_list,
+    };
+    Ok(Json(config))
 }
 
 pub async fn save_config(
     Form(form): Form<HashMap<String, String>>,
 ) -> Result<impl IntoResponse, WebError> {
-    async fn _save_config(form: HashMap<String, String>) -> anyhow::Result<()> {
-        let mut configs = Vec::new();
-        if let Some(rules) = form.get("approveRules") {
-            configs.extend(
-                rules
-                    .split('\n')
-                    .map(str::trim)
-                    .filter(|x| !x.is_empty())
-                    .filter_map(|r| extract_filter(r, true)),
-            );
-        }
-        if let Some(rules) = form.get("rejectRules") {
-            configs.extend(
-                rules
-                    .split('\n')
-                    .map(str::trim)
-                    .filter(|x| !x.is_empty())
-                    .filter_map(|r| extract_filter(r, false)),
-            );
-        }
-        let mut bl_updated = false;
-        if let Some(block_list) = form.get("updatedBlockList") {
-            let old_block_list = db_block_list().await?;
-            let old_block_list = old_block_list
-                .iter()
-                .map(|bl| bl.b_src.trim())
-                .collect::<HashSet<_>>();
-            let new_block_list = block_list
+    let mut configs = Vec::new();
+    if let Some(rules) = form.get("approveRules") {
+        configs.extend(
+            rules
                 .split('\n')
                 .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .collect::<HashSet<_>>();
-            if old_block_list != new_block_list {
-                log::info!(
-                    "Block list has been updated {} vs {}",
-                    old_block_list.len(),
-                    new_block_list.len()
-                );
-                replace_block_list(new_block_list).await?;
-                bl_updated = true;
-            } else {
-                log::info!("Block list hasn't been updated, nothing to do!");
-            }
-        }
-        log::info!("Inserting {} values in filters", configs.len());
-        save_filters(configs).await?;
-        tokio::spawn(async move {
-            filter::load_allow().await.ok();
-            filter::load_block().await.ok();
-            if bl_updated {
-                blocker::fetch_block_list(false).await.ok();
-            }
-        });
-        Ok(())
+                .filter(|x| !x.is_empty())
+                .filter_map(|r| extract_filter(r, true)),
+        );
     }
-    _save_config(form).await?;
+    if let Some(rules) = form.get("rejectRules") {
+        configs.extend(
+            rules
+                .split('\n')
+                .map(str::trim)
+                .filter(|x| !x.is_empty())
+                .filter_map(|r| extract_filter(r, false)),
+        );
+    }
+    log::info!("Saving {} filters", configs.len());
+    save_filters(configs).await?;
+    log::info!("Reloading the filters...");
+    reload_filters().await?;
+
+    if let Some(block_list) = form.get("updatedBlockList") {
+        let old_block_list = load_block_list().await?;
+        let old_block_list = old_block_list
+            .iter()
+            .map(|bl| bl.src.trim())
+            .collect::<HashSet<_>>();
+        let new_block_list = block_list
+            .split('\n')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .collect::<HashSet<_>>();
+        if old_block_list != new_block_list {
+            log::info!(
+                "Block list has been updated {} vs {}",
+                old_block_list.len(),
+                new_block_list.len()
+            );
+            let last_updated = Local::now().naive_local();
+            save_block_list(
+                new_block_list
+                    .into_iter()
+                    .map(|line| DbBlockList {
+                        bl_id: -1,
+                        src: line.into(),
+                        retry_count: 0,
+                        domain_count: -1,
+                        last_updated,
+                    })
+                    .collect::<Vec<_>>(),
+            )
+            .await?;
+            signal_blocked_domain_refresh();
+        } else {
+            log::warn!("Block list hasn't been updated, nothing to do!");
+        }
+    }
+
     fetch_config().await
 }
 
@@ -134,22 +127,22 @@ fn extract_filter(mut rule: &str, is_allow: bool) -> Option<DbFilter> {
     };
     let is_regex = if rule.starts_with('*') {
         rule = rule[1..].trim();
-        if Regex::new(rule).is_err() {
-            log::warn!("Can't parse {} as regex", rule);
+        if let Err(e) = Regex::new(rule) {
+            log::warn!("Can't parse {rule} as regex: {e:?}",);
             return None;
         }
         true
     } else {
-        if Domain::parse(rule).is_none() {
-            log::warn!("Can't parse {} as domain name", rule);
+        if let Err(e) = Name::from_str_relaxed(rule) {
+            log::warn!("Can't parse {rule} as domain name: {e:?}");
             return None;
         }
         false
     };
     Some(DbFilter {
         f_id: -1,
-        ct: Local::now().naive_local(),
-        expr: rule.to_string(),
+        create_time: Local::now().naive_local(),
+        expr: rule.to_lowercase(),
         is_regex,
         is_allow,
         enabled,
@@ -158,17 +151,10 @@ fn extract_filter(mut rule: &str, is_allow: bool) -> Option<DbFilter> {
 
 #[cfg(test)]
 mod test {
-    use regex::Regex;
+    use crate::web::config::extract_filter;
 
     #[test]
     fn test1() {
-        match Regex::new(".*duh.*") {
-            Ok(r) => {
-                dbg!(r.is_match("www.duho.com"));
-            }
-            Err(e) => {
-                dbg!(e);
-            }
-        };
+        dbg!(extract_filter("#*facebook.com", true));
     }
 }

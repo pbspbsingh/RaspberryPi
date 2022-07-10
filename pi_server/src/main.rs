@@ -1,10 +1,10 @@
 #[cfg(not(target_os = "windows"))]
 use tikv_jemallocator::Jemalloc;
 
-use pi_server::blocker::refresh_block_list;
 use pi_server::cloudflared::init_cloudflare;
 use pi_server::db::init_db;
-use pi_server::dns::{start_dns_server, update_filters};
+use pi_server::dns::start_dns_server;
+use pi_server::downloader::start_download_loop;
 use pi_server::sysinfo::load_sys_info;
 use pi_server::web::{start_web_server, ws_sender};
 use pi_server::{PiConfig, PI_CONFIG};
@@ -19,6 +19,7 @@ async fn main() -> anyhow::Result<()> {
 
     init_logger().await?;
     init_db().await?;
+    domain::init().await?;
 
     let cloudflared = init_cloudflare().await?;
 
@@ -27,9 +28,8 @@ async fn main() -> anyhow::Result<()> {
         start_dns_server(),
         start_web_server(),
         load_sys_info(),
-        update_filters(),
-        refresh_block_list(),
         ws_sender(),
+        start_download_loop(),
     ) {
         println!("Something went wrong: {e:?}");
         log::error!("Failed to start the app: {e:?}");

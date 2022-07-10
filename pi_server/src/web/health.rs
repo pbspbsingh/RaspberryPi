@@ -22,7 +22,7 @@ pub async fn fetch_health_info(Path(days): Path<u32>) -> Result<impl IntoRespons
     let mut memory = Vec::new();
     let mut cpu_temp = Vec::new();
 
-    for si in load_sys_info(from).await.map_err(anyhow::Error::from)? {
+    for si in load_sys_info(from).await? {
         let time = si.s_time.timestamp_millis() as u64;
         if let Some(temp) = si.temperature {
             temperature.push((time, truncate(temp)));

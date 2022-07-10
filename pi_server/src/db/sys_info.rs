@@ -54,14 +54,17 @@ pub async fn save(
 ) -> anyhow::Result<i64> {
     ws_health_info(cpu_avg, cpu_temp, memory, temperature, humidity);
     Ok(sqlx::query!(
-        "insert into sys_info(cpu_avg, cpu_temp, memory, temperature, humidity) values(?, ?, ?, ?, ?)",
+        r#"
+        insert into sys_info(cpu_avg, cpu_temp, memory, temperature, humidity) 
+        values(?, ?, ?, ?, ?)
+        "#,
         cpu_avg,
         cpu_temp,
         memory,
         temperature,
         humidity
     )
-        .execute(POOL.get().unwrap())
-        .await?
-        .last_insert_rowid())
+    .execute(POOL.get().unwrap())
+    .await?
+    .last_insert_rowid())
 }

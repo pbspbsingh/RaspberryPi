@@ -8,11 +8,10 @@ use tokio::fs;
 
 pub use timer::Timer;
 
-pub mod blocker;
 pub mod cloudflared;
 pub mod db;
 pub mod dns;
-pub mod http_client;
+pub mod downloader;
 pub mod sysinfo;
 mod timer;
 pub mod web;
