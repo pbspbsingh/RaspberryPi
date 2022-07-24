@@ -2,6 +2,7 @@ use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Instant;
 
 use chrono::{Duration, Local, NaiveDateTime, Timelike};
+use log::*;
 use once_cell::sync::OnceCell;
 use rustlearn::multiclass::OneVsRestWrapper;
 use rustlearn::prelude::*;
@@ -33,11 +34,7 @@ pub async fn read_climate_info() -> (Option<f32>, Option<f32>) {
                 last_reading = Some((measured_temp, measured_humid));
                 if final_temp.is_none() {
                     if let Some(predicted_temp) = predict_temperature().await {
-                        log::info!(
-                            "Measured temperature: {:.2}C, Predicted temperature: {:.2}C",
-                            measured_temp,
-                            predicted_temp
-                        );
+                        info!("Measured temperature: {measured_temp:.2}C, Predicted temperature: {predicted_temp:.2}C");
                         if (measured_temp - predicted_temp).abs() < ACCEPTABLE_TEMP_DIFF {
                             final_temp = Some(measured_temp);
                         }
@@ -45,11 +42,7 @@ pub async fn read_climate_info() -> (Option<f32>, Option<f32>) {
                 }
                 if final_temp.is_none() {
                     let last_temp = LAST_READ_TEMP.load(Ordering::Relaxed) as f32 / 1000.0;
-                    log::info!(
-                        "Measured temperature: {:.2}C, Last temperature: {:.2}C",
-                        measured_temp,
-                        last_temp
-                    );
+                    info!("Measured temperature: {measured_temp:.2}C, Last temperature: {last_temp:.2}C");
                     if (measured_temp - last_temp).abs() < ACCEPTABLE_TEMP_DIFF {
                         final_temp = Some(measured_temp);
                     }
@@ -57,11 +50,7 @@ pub async fn read_climate_info() -> (Option<f32>, Option<f32>) {
 
                 if final_humidity.is_none() {
                     if let Some(predicted_humid) = predict_humidity().await {
-                        log::info!(
-                            "Measured humidity: {:.2}, Predicted humdity: {:.2}",
-                            measured_humid,
-                            predicted_humid
-                        );
+                        info!("Measured humidity: {measured_humid:.2}, Predicted humidity: {predicted_humid:.2}");
                         if (measured_humid - predicted_humid).abs() < ACCEPTABLE_HUMID_DIFF {
                             final_humidity = Some(measured_humid);
                         }
@@ -69,18 +58,14 @@ pub async fn read_climate_info() -> (Option<f32>, Option<f32>) {
                 }
                 if final_humidity.is_none() {
                     let last_humid = LAST_READ_HUMID.load(Ordering::Relaxed) as f32 / 1000.0;
-                    log::info!(
-                        "Measured humidity: {:.2}, Last humdity: {:.2}",
-                        measured_humid,
-                        last_humid
-                    );
+                    info!("Measured humidity: {measured_humid:.2}, Last humidity: {last_humid:.2}");
                     if (measured_humid - last_humid).abs() < ACCEPTABLE_HUMID_DIFF {
                         final_humidity = Some(measured_humid);
                     }
                 }
 
                 if final_temp.is_some() && final_humidity.is_some() {
-                    log::info!("Read temperature/humidity in {} retries", try_cnt);
+                    info!("Read temperature/humidity in {try_cnt} retries");
                     break;
                 }
             }
@@ -91,17 +76,11 @@ pub async fn read_climate_info() -> (Option<f32>, Option<f32>) {
     }
     if let Some((t, h)) = last_reading {
         if final_temp.is_none() {
-            log::warn!(
-                "Neither ML nor last temperature worked, using the last read value: {:.2}C",
-                t
-            );
+            warn!("Neither ML nor last temperature worked, using the last read value: {t:.2}C");
             final_temp = Some(t);
         }
         if final_humidity.is_none() {
-            log::warn!(
-                "Neither ML nor last humidity worked, using the last read value: {:.2}",
-                h
-            );
+            warn!("Neither ML nor last humidity worked, using the last read value: {h:.2}");
             final_humidity = Some(h);
         }
     }
@@ -111,7 +90,7 @@ pub async fn read_climate_info() -> (Option<f32>, Option<f32>) {
     if let Some(humid) = final_humidity {
         LAST_READ_HUMID.store((humid * 1000.0) as i64, Ordering::SeqCst);
     }
-    log::warn!("Reading temperature/humidity took {}", start.t());
+    info!("Reading temperature/humidity took {}", start.t());
     (final_temp, final_humidity)
 }
 
@@ -119,7 +98,7 @@ async fn read_pin(pin: u32) -> Option<(f32, f32)> {
     tokio::task::spawn_blocking(move || match dht22::try_reading(pin) {
         Ok(reading) => Some((reading.temperature(), reading.humidity())),
         Err(e) => {
-            log::warn!("Failed to read temperature/humidity: {:?}", e);
+            warn!("Failed to read temperature/humidity: {e:?}");
             None
         }
     })
@@ -137,10 +116,10 @@ async fn predict_temperature() -> Option<f32> {
             Ok(result) => {
                 return Some(result.get(0, 0));
             }
-            Err(e) => log::warn!("Failed to predict temperature: {}", e),
+            Err(e) => warn!("Failed to predict temperature: {e}"),
         }
     } else {
-        log::warn!("Temperature model is not initialized yet");
+        warn!("Temperature model is not initialized yet");
     }
     None
 }
@@ -155,10 +134,10 @@ async fn predict_humidity() -> Option<f32> {
             Ok(result) => {
                 return Some(result.get(0, 0));
             }
-            Err(e) => log::warn!("Failed to predict humidity: {}", e),
+            Err(e) => warn!("Failed to predict humidity: {e}"),
         }
     } else {
-        log::warn!("Humidity model is not initialized yet");
+        warn!("Humidity model is not initialized yet");
     }
     None
 }
@@ -168,7 +147,7 @@ async fn train_models() {
         let read_lock = last_update.read().await;
         let diff = Local::now().naive_local() - *read_lock;
         if diff < Duration::hours(1) {
-            log::debug!(
+            debug!(
                 "ML models were last updated {} ago, skipping re-training",
                 diff.to_std().unwrap().t()
             );
@@ -180,13 +159,13 @@ async fn train_models() {
         .await
         .unwrap_or_else(|_| Vec::new());
     if sys_infos.len() < 1000 {
-        log::warn!(
+        warn!(
             "Data points {} is not enough for training machine learning model",
             sys_infos.len()
         );
         return;
     }
-    log::info!(
+    info!(
         "Training machine learning models with {} data points",
         sys_infos.len()
     );
@@ -194,8 +173,7 @@ async fn train_models() {
     let start = Instant::now();
     let (times, temps): (Vec<f32>, Vec<f32>) = sys_infos
         .iter()
-        .filter(|s| s.temperature.is_some())
-        .map(|sys| (to_seconds(sys.s_time), sys.temperature.unwrap()))
+        .filter_map(|s| s.temperature.map(|t| (to_seconds(s.s_time), t)))
         .unzip();
     let mut temp_model = Hyperparameters::new(1).one_vs_rest();
     match temp_model.fit(&Array::from(times), &Array::from(temps)) {
@@ -206,17 +184,16 @@ async fn train_models() {
             } else {
                 TEMPERATURE_MODEL.set(RwLock::new(temp_model)).ok();
             }
-            log::info!("ML training for temperature succeeded in {}", start.t());
+            info!("ML training for temperature succeeded in {}", start.t());
             s1 = true;
         }
-        Err(e) => log::warn!("ML training for temperature failed: {:?}", e),
+        Err(e) => warn!("ML training for temperature failed: {e:?}"),
     };
 
     let start = Instant::now();
     let (times, humids): (Vec<f32>, Vec<f32>) = sys_infos
-        .iter()
-        .filter(|s| s.humidity.is_some())
-        .map(|sys| (to_seconds(sys.s_time), sys.humidity.unwrap()))
+        .into_iter()
+        .filter_map(|s| s.humidity.map(|h| (to_seconds(s.s_time), h)))
         .unzip();
     let mut humid_model = Hyperparameters::new(1).one_vs_rest();
     match humid_model.fit(&Array::from(times), &Array::from(humids)) {
@@ -227,10 +204,10 @@ async fn train_models() {
             } else {
                 HUMIDITY_MODEL.set(RwLock::new(humid_model)).ok();
             }
-            log::info!("ML training for humidity succeeded in {}", start.t());
+            info!("ML training for humidity succeeded in {}", start.t());
             s2 = true;
         }
-        Err(e) => log::warn!("ML training for humidity failed: {:?}", e),
+        Err(e) => warn!("ML training for humidity failed: {e:?}"),
     };
 
     if s1 && s2 {
@@ -243,9 +220,9 @@ async fn train_models() {
                 .ok();
         }
     } else {
-        log::warn!("One or more ML learning failed, not updating last_updated flag");
+        warn!("One or more ML learning failed, not updating last_updated flag");
     }
-    log::info!("Machine learning training completed in {}", train_start.t());
+    info!("Machine learning training completed in {}", train_start.t());
 }
 
 fn to_seconds(time: NaiveDateTime) -> f32 {
