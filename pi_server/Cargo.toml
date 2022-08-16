@@ -24,7 +24,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "fs"
 futures-util = "0"
 axum = { version = "0", features = ["ws"] }
 sqlx = { version = "0", features = ["runtime-tokio-rustls", "sqlite", "chrono"] }
-reqwest = { version = "0", features = ["cookies", "rustls"] }
+reqwest = { version = "0", default-features = false, features = ["cookies", "rustls-tls"] }
 
 http = "0"
 mime_guess = "2"

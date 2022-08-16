@@ -11,7 +11,7 @@ use crate::Timer;
 mod climate;
 
 const MB: f32 = 1024.0 * 1024.0;
-const SLEEP_DELAY: Duration = Duration::from_secs(30);
+const SLEEP_DELAY: Duration = Duration::from_secs(60);
 
 pub async fn load_sys_info() -> anyhow::Result<()> {
     let mut delay = time::Instant::now() + SLEEP_DELAY;
